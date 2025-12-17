@@ -17,7 +17,6 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-latest
-    environment: apply
     defaults:
       run:
         working-directory: infra/terraform
