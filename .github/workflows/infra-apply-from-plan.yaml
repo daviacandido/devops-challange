@@ -1,0 +1,70 @@
+name: infra-apply-from-plan
+
+on:
+  workflow_run:
+    workflows: ["infra-plan"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: infra-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    environment: apply
+    defaults:
+      run:
+        working-directory: infra/terraform
+        shell: bash
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_CLI_ARGS_init: "-no-color"
+      TF_CLI_ARGS_apply: "-no-color"
+      TF_CLI_ARGS_validate: "-no-color"
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout (same commit SHA)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+          terraform_wrapper: false
+
+      - name: Terraform Init (remote state)
+        run: terraform init -backend-config=envs/aks/backend.hcl
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Download plan artifact from Plan run
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan-${{ github.event.workflow_run.head_sha }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: infra/terraform
+
+      - name: Terraform Apply (from saved tfplan)
+        run: |
+          set -euo pipefail
+          PLAN_FILE="tfplan-${{ github.event.workflow_run.head_sha }}"
+          test -f "${PLAN_FILE}"
+          terraform apply -auto-approve "${PLAN_FILE}"
