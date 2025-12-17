@@ -1,4 +1,4 @@
-name: infra-plan
+name: infra-plan-pr
 
 on:
   pull_request:
@@ -6,17 +6,12 @@ on:
       - "infra/terraform/**"
     types: [opened, synchronize, reopened, ready_for_review]
 
-  push:
-    branches: [main]
-    paths:
-      - "infra/terraform/**"
-
 permissions:
   contents: read
   pull-requests: write
 
 concurrency:
-  group: infra-plan-${{ github.event.pull_request.number || github.ref }}
+  group: infra-plan-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -78,7 +73,6 @@ jobs:
           echo "plan_file=${PLAN_FILE}" >> "$GITHUB_OUTPUT"
 
       - name: Comment plan on PR
-        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -99,11 +93,11 @@ jobs:
               body: content
             });
 
-      - name: Upload plan artifacts
+      - name: Upload plan artifacts (optional)
         if: always() && steps.plan.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-${{ github.sha }}
+          name: terraform-plan-pr-${{ github.sha }}
           path: |
             infra/terraform/${{ steps.plan.outputs.plan_file }}
             infra/terraform/plan.txt
