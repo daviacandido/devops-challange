@@ -29,6 +29,8 @@ jobs:
       TF_CLI_ARGS_init: "-no-color"
       TF_CLI_ARGS_apply: "-no-color"
       TF_CLI_ARGS_validate: "-no-color"
+      TF_VAR_authorized_ip_ranges: ${{ vars.AKS_API_AUTHORIZED_IP_RANGES }}
+
 
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
