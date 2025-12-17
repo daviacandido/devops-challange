@@ -58,7 +58,7 @@ jobs:
       - name: Download plan artifact from Plan run
         uses: actions/download-artifact@v4
         with:
-          name: terraform-plan-${{ github.event.workflow_run.head_sha }}
+          name: tfplan-${{ github.event.workflow_run.head_sha }}
           run-id: ${{ github.event.workflow_run.id }}
           path: infra/terraform
 
