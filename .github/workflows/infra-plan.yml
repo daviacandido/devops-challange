@@ -17,6 +17,7 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    environment: apply
     defaults:
       run:
         working-directory: infra/terraform
@@ -67,8 +68,10 @@ jobs:
         id: plan
         run: |
           set -euo pipefail
-          terraform plan -var-file=envs/aks/terraform.tfvars -out=tfplan
-          terraform show -no-color tfplan > plan.txt
+          PLAN_FILE="tfplan-${GITHUB_SHA}"
+          terraform plan -var-file=envs/aks/terraform.tfvars -out="${PLAN_FILE}"
+          terraform show -no-color "${PLAN_FILE}" > plan.txt
+          echo "plan_file=${PLAN_FILE}" >> "$GITHUB_OUTPUT"
 
       - name: Comment plan on PR
         if: always()
@@ -92,10 +95,12 @@ jobs:
               body: content
             });
 
-      - name: Upload plan output (artifact)
+      - name: Upload plan artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-output
-          path: infra/terraform/plan.txt
+          name: terraform-plan-${{ github.sha }}
+          path: |
+            infra/terraform/${{ steps.plan.outputs.plan_file }}
+            infra/terraform/plan.txt
           retention-days: 7
