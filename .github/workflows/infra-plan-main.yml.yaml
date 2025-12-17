@@ -1,0 +1,82 @@
+name: infra-plan-main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-plan-main-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+        shell: bash
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_CLI_ARGS_init: "-no-color"
+      TF_CLI_ARGS_plan: "-no-color"
+      TF_CLI_ARGS_validate: "-no-color"
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+          terraform_wrapper: false
+
+      - name: Cache Terraform
+        uses: actions/cache@v4
+        with:
+          path: |
+            infra/terraform/.terraform
+            infra/terraform/.terraform.lock.hcl
+          key: ${{ runner.os }}-terraform-${{ hashFiles('infra/terraform/**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init (remote state)
+        run: terraform init -backend-config=envs/aks/backend.hcl
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          set -euo pipefail
+          PLAN_FILE="tfplan-${GITHUB_SHA}"
+          terraform plan -var-file=envs/aks/terraform.tfvars -out="${PLAN_FILE}"
+          terraform show -no-color "${PLAN_FILE}" > plan.txt
+          echo "plan_file=${PLAN_FILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plan artifacts
+        if: always() && steps.plan.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ github.sha }}
+          path: |
+            infra/terraform/${{ steps.plan.outputs.plan_file }}
+            infra/terraform/plan.txt
+          retention-days: 7
