@@ -1,0 +1,36 @@
+##################################
+# Terraform
+##################################
+
+# Diretório de estado local
+.terraform/
+**/.terraform/*
+
+# Arquivos de estado
+*.tfstate
+*.tfstate.*
+
+# Plano gerado
+*.tfplan
+*.plan
+
+# Lock file (opcional)
+.terraform.lock.hcl
+
+# Variáveis sensíveis
+*.tfvars
+*.tfvars.json
+
+# Overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+##################################
+# Credenciais / Secrets
+##################################
+
+# Azure
+*.azureAuth
+azure-credentials.json
