@@ -19,6 +19,7 @@
 
 # Variáveis sensíveis
 *.tfvars
+!envs/aks/terraform.tfvars # exceção para arquivo de variáveis do ambiente AKS
 *.tfvars.json
 
 # Overrides
