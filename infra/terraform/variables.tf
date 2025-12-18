@@ -52,7 +52,7 @@ variable "jumpbox_admin_ssh_public_key" {
   description = "SSH public key used to access the jumpbox VM"
 
   validation {
-    condition     = length(trim(var.jumpbox_admin_ssh_public_key)) > 0
+    condition     = length(trimspace(var.jumpbox_admin_ssh_public_key)) > 0
     error_message = "jumpbox_admin_ssh_public_key must not be empty. Provide it via TF_VAR_jumpbox_admin_ssh_public_key or tfvars."
   }
 }
