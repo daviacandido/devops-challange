@@ -46,7 +46,13 @@ variable "jumpbox_vm_size" {
 }
 
 variable "jumpbox_admin_username" { type = string }
+
 variable "jumpbox_admin_ssh_public_key" {
   type        = string
-  description = "SSH public key (conteúdo do id_rsa.pub / id_ed25519.pub)"
+  description = "SSH public key used to access the jumpbox VM"
+
+  validation {
+    condition     = length(trimspace(var.jumpbox_admin_ssh_public_key)) > 0
+    error_message = "jumpbox_admin_ssh_public_key must not be empty. Provide it via TF_VAR_jumpbox_admin_ssh_public_key or tfvars."
+  }
 }
