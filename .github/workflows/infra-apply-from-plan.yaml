@@ -86,8 +86,10 @@ jobs:
           echo "Files after extract:"
           ls -la
 
-      - name: Terraform Init
-        run: terraform init -backend-config=envs/aks/backend.hcl
+          test -f .terraform.lock.hcl
+
+      - name: Terraform Init (remote state, lockfile readonly)
+        run: terraform init -backend-config=envs/aks/backend.hcl -lockfile=readonly
 
       - name: Terraform Validate
         run: terraform validate
