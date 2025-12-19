@@ -36,7 +36,6 @@ variable "jumpbox_subnet_cidr" { type = string }
 
 variable "bastion_subnet_cidr" { type = string }
 
-# Bastion / Jumpbox
 variable "bastion_name" { type = string }
 
 variable "jumpbox_name" { type = string }
@@ -55,4 +54,15 @@ variable "jumpbox_admin_ssh_public_key" {
     condition     = length(trimspace(var.jumpbox_admin_ssh_public_key)) > 0
     error_message = "jumpbox_admin_ssh_public_key must not be empty. Provide it via TF_VAR_jumpbox_admin_ssh_public_key or tfvars."
   }
+}
+
+variable "dns_zone_name" {
+  type        = string
+  description = "Public DNS zone name."
+}
+
+variable "bry_ingress_public_ip" {
+  type        = string
+  description = "Public IP of ingress-nginx controller for bry.daviacandido.com.br"
+  default     = ""
 }

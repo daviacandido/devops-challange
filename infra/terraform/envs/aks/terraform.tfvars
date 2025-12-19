@@ -25,3 +25,5 @@ bastion_name = "bst-aks-poc-bry"
 
 jumpbox_name           = "vm-jumpbox-aks-poc-bry"
 jumpbox_admin_username = "azureuser"
+
+dns_zone_name = "daviacandido.com.br"
