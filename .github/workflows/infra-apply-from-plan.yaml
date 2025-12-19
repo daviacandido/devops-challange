@@ -33,6 +33,9 @@ jobs:
       TF_CLI_ARGS_validate: "-no-color"
       TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
       TF_VAR_bry_ingress_public_ip: ${{ vars.BRY_INGRESS_PUBLIC_IP }}
+      TF_VAR_dns_zone_name: ${{ vars.DNS_ZONE_NAME }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
 
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
