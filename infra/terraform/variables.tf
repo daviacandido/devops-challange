@@ -56,13 +56,24 @@ variable "jumpbox_admin_ssh_public_key" {
   }
 }
 
+variable "cloudflare_api_token" {
+  type        = string
+  description = "Cloudflare API token."
+  sensitive   = true
+}
+
+variable "cloudflare_zone_id" {
+  type        = string
+  description = "Cloudflare Zone ID."
+}
+
 variable "dns_zone_name" {
   type        = string
-  description = "Public DNS zone name."
+  description = "Base domain"
 }
 
 variable "bry_ingress_public_ip" {
   type        = string
-  description = "Public IP of ingress-nginx controller for bry.daviacandido.com.br"
+  description = "Public IP of ingress-nginx LoadBalancer (origin)."
   default     = ""
 }
