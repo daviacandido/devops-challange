@@ -27,43 +27,61 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
+      BOOTSTRAP_DIR: k8s/bootstrap
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Fail fast (vars + manifests)
+        run: |
+          set -euo pipefail
+
+          echo "AKS_RESOURCE_GROUP='${AKS_RESOURCE_GROUP}'"
+          echo "AKS_NAME='${AKS_NAME}'"
+
+          [[ -n "${AKS_RESOURCE_GROUP}" ]] || { echo "::error::AKS_RESOURCE_GROUP vazio"; exit 1; }
+          [[ -n "${AKS_NAME}" ]] || { echo "::error::AKS_NAME vazio"; exit 1; }
+
+          echo "Conteúdo de ${BOOTSTRAP_DIR}:"
+          ls -la "${BOOTSTRAP_DIR}"
+
+          test -d "${BOOTSTRAP_DIR}" || { echo "::error::Diretório ${BOOTSTRAP_DIR} não existe"; exit 1; }
+
       - name: Azure login (SP)
         run: |
           set -euo pipefail
+
+          az version
+
           az login --service-principal \
             -u "${ARM_CLIENT_ID}" \
             -p "${ARM_CLIENT_SECRET}" \
             --tenant "${ARM_TENANT_ID}" >/dev/null
+
           az account set --subscription "${ARM_SUBSCRIPTION_ID}"
 
       - name: AKS credentials (admin)
         run: |
           set -euo pipefail
+
           rm -f ~/.kube/config || true
+          mkdir -p ~/.kube
+
           az aks get-credentials \
             --resource-group "${AKS_RESOURCE_GROUP}" \
             --name "${AKS_NAME}" \
             --admin \
             --overwrite-existing
 
-      - name: Install Metrics Server
-        run: |
-          set -euo pipefail
-          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          kubectl cluster-info
+          kubectl get nodes -o wide
 
-      - name: Install Ingress NGINX
+      - name: Apply bootstrap manifests
         run: |
           set -euo pipefail
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/cloud/deploy.yaml
 
-      - name: Install cert-manager
-        run: |
-          set -euo pipefail
-          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+          kubectl apply -f "${BOOTSTRAP_DIR}"
 
       - name: Wait ingress-nginx ready
         run: |
