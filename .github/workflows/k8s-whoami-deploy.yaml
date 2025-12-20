@@ -58,12 +58,12 @@ jobs:
           set -euo pipefail
           test -n "${WHOAMI_HOST}"
 
-          kubectl apply -f k8s/apps/whoami/00-namespace.yaml
-          kubectl apply -f k8s/apps/whoami/10-deployment.yaml
-          kubectl apply -f k8s/apps/whoami/20-service.yaml
-          kubectl apply -f k8s/apps/whoami/30-hpa.yaml
-          kubectl apply -f k8s/apps/whoami/40-clusterissuer.yaml
-          kubectl apply -f k8s/apps/whoami/50-ingress.yaml
+          kubectl apply -f k8s/whoami/00-namespace.yaml
+          kubectl apply -f k8s/whoami/10-deployment.yaml
+          kubectl apply -f k8s/whoami/20-service.yaml
+          kubectl apply -f k8s/whoami/30-hpa.yaml
+          kubectl apply -f k8s/whoami/40-clusterissuer.yaml
+          kubectl apply -f k8s/whoami/50-ingress.yaml
 
       - name: Wait rollout
         run: |
