@@ -8,7 +8,7 @@ on:
         required: true
         default: "aks"
       gh_env:
-        description: "GitHub Environment (ex: apply or destroy)"
+        description: "GitHub Environment (ex: apply)"
         required: true
         default: "apply"
       confirm:
@@ -26,8 +26,10 @@ concurrency:
 
 jobs:
   plan_destroy:
-    environment: ${{ inputs.gh_env }}
+    name: Plan Destroy
     runs-on: ubuntu-latest
+    environment: ${{ inputs.gh_env }}
+
     defaults:
       run:
         working-directory: infra/terraform
@@ -39,16 +41,22 @@ jobs:
       TF_CLI_ARGS_init: "-no-color"
       TF_CLI_ARGS_plan: "-no-color"
       TF_CLI_ARGS_validate: "-no-color"
-      TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
-      TF_VAR_bry_ingress_public_ip: ${{ vars.BRY_INGRESS_PUBLIC_IP }}
-      TF_VAR_dns_zone_name: ${{ vars.DNS_ZONE_NAME }}
-      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
 
+      # Azure
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      # Terraform vars
+      TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
+      TF_VAR_bry_ingress_public_ip: ${{ vars.BRY_INGRESS_PUBLIC_IP }}
+      TF_VAR_dns_zone_name: ${{ vars.DNS_ZONE_NAME }}
+      TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      # Cloudflare provider official env var (robust)
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
     steps:
       - name: Checkout (main)
@@ -61,6 +69,12 @@ jobs:
         with:
           terraform_version: 1.6.6
           terraform_wrapper: false
+
+      - name: Debug Cloudflare token presence (no secret output)
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" && echo "CLOUDFLARE_API_TOKEN OK" || (echo "CLOUDFLARE_API_TOKEN VAZIO" && exit 1)
+          test -n "${TF_VAR_cloudflare_api_token:-}" && echo "TF_VAR_cloudflare_api_token OK" || echo "TF_VAR_cloudflare_api_token VAZIO (ok se provider usa CLOUDFLARE_API_TOKEN)"
 
       - name: Terraform Init (remote state)
         run: terraform init -backend-config=envs/${{ inputs.tf_env }}/backend.hcl
@@ -86,10 +100,12 @@ jobs:
           retention-days: 7
 
   destroy:
+    name: Apply Destroy
     needs: plan_destroy
     if: github.ref == 'refs/heads/main' && inputs.confirm == 'DESTROY'
     runs-on: ubuntu-latest
-    environment: destroy
+    environment: ${{ inputs.gh_env }}
+
     defaults:
       run:
         working-directory: infra/terraform
@@ -102,12 +118,21 @@ jobs:
       TF_CLI_ARGS_apply: "-no-color"
       TF_CLI_ARGS_validate: "-no-color"
 
+      # Azure
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
+      # Terraform vars
       TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
+      TF_VAR_bry_ingress_public_ip: ${{ vars.BRY_INGRESS_PUBLIC_IP }}
+      TF_VAR_dns_zone_name: ${{ vars.DNS_ZONE_NAME }}
+      TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      # Cloudflare provider official env var (robust)
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
     steps:
       - name: Checkout (main)
@@ -120,6 +145,11 @@ jobs:
         with:
           terraform_version: 1.6.6
           terraform_wrapper: false
+
+      - name: Debug Cloudflare token presence (no secret output)
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" && echo "CLOUDFLARE_API_TOKEN OK" || (echo "CLOUDFLARE_API_TOKEN VAZIO" && exit 1)
 
       - name: Terraform Init (remote state)
         run: terraform init -backend-config=envs/${{ inputs.tf_env }}/backend.hcl
