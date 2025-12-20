@@ -5,6 +5,7 @@ package_upgrade: true
 packages:
   - ca-certificates
   - curl
+  - apt-transport-https
   - gnupg
   - lsb-release
   - unzip
@@ -12,45 +13,49 @@ packages:
 write_files:
   - path: /etc/runner.env
     permissions: "0600"
+    owner: root:root
     content: |
       CI_REPO=${ci_repo}
       CI_RUNNER_TOKEN=${ci_runner_token}
 
-runcmd:
-  - [ bash, -lc, |
+  - path: /usr/local/bin/setup-gh-runner.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
       set -euo pipefail
 
       source /etc/runner.env
-      ci_repo="$CI_REPO"
-      ci_runner_token="$CI_RUNNER_TOKEN"
+      ci_repo="${CI_REPO:-}"
+      ci_runner_token="${CI_RUNNER_TOKEN:-}"
 
       if [[ -z "${ci_repo}" || -z "${ci_runner_token}" ]]; then
-        echo "ERRO: CI_REPO/CI_RUNNER_TOKEN vazios. Verifique o template do user-data (Terraform)."
+        echo "ERRO: CI_REPO/CI_RUNNER_TOKEN vazios. Verifique o template do cloud-init (Terraform/custom_data)."
         exit 1
       fi
 
       # Azure CLI
       curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
-      # kubectl
+      # kubectl (binary)
       curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
       chmod +x /usr/local/bin/kubectl
       kubectl version --client || true
 
-      # user + folder
+      # Create runner user + folder
       id runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
       mkdir -p /opt/actions-runner
       chown -R runner:runner /opt/actions-runner
 
-      # download runner
+      # Download GitHub Runner
       su - runner -c 'cd /opt/actions-runner && \
         curl -fsSLO https://github.com/actions/runner/releases/download/v2.316.0/actions-runner-linux-x64-2.316.0.tar.gz && \
         tar xzf actions-runner-linux-x64-2.316.0.tar.gz'
 
-      # deps
+      # Install runner dependencies
       /opt/actions-runner/bin/installdependencies.sh
 
-      # config
+      # Configure runner (only once)
       if [[ ! -f /opt/actions-runner/.runner ]]; then
         su - runner -c "cd /opt/actions-runner && \
           ./config.sh --unattended \
@@ -61,13 +66,16 @@ runcmd:
             --work _work"
       fi
 
+      # Ensure config happened
       test -f /opt/actions-runner/.runner
 
-      # install/start service (root)
+      # Install and start service (must be root)
       cd /opt/actions-runner
       ./svc.sh install
       ./svc.sh start
 
-      # debug status
-      systemctl --no-pager -l status actions.runner* || true
-    ]
+      # Debug service status
+      systemctl --no-pager -l status 'actions.runner*' || true
+
+runcmd:
+  - [ bash, -lc, "/usr/local/bin/setup-gh-runner.sh > /var/log/setup-gh-runner.log 2>&1" ]
