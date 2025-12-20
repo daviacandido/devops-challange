@@ -26,10 +26,10 @@ write_files:
       set -euo pipefail
 
       source /etc/runner.env
-      ci_repo="${CI_REPO:-}"
-      ci_runner_token="${CI_RUNNER_TOKEN:-}"
+      ci_repo="$CI_REPO"
+      ci_runner_token="$CI_RUNNER_TOKEN"
 
-      if [[ -z "${ci_repo}" || -z "${ci_runner_token}" ]]; then
+      if [[ -z "$ci_repo" || -z "$ci_runner_token" ]]; then
         echo "ERRO: CI_REPO/CI_RUNNER_TOKEN vazios. Verifique o template do cloud-init (Terraform/custom_data)."
         exit 1
       fi
@@ -69,12 +69,11 @@ write_files:
       # Ensure config happened
       test -f /opt/actions-runner/.runner
 
-      # Install and start service (must be root)
+      # Install and start service
       cd /opt/actions-runner
-      ./svc.sh install
-      ./svc.sh start
+      ./svc.sh install || true
+      ./svc.sh start || true
 
-      # Debug service status
       systemctl --no-pager -l status 'actions.runner*' || true
 
 runcmd:
