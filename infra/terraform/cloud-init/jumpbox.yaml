@@ -5,38 +5,53 @@ package_upgrade: true
 packages:
   - ca-certificates
   - curl
-  - apt-transport-https
   - gnupg
   - lsb-release
   - unzip
 
+write_files:
+  - path: /etc/runner.env
+    permissions: "0600"
+    content: |
+      CI_REPO=${ci_repo}
+      CI_RUNNER_TOKEN=${ci_runner_token}
+
 runcmd:
-  - bash -lc |
+  - [ bash, -lc, |
       set -euo pipefail
+
+      source /etc/runner.env
+      ci_repo="$CI_REPO"
+      ci_runner_token="$CI_RUNNER_TOKEN"
+
+      if [[ -z "${ci_repo}" || -z "${ci_runner_token}" ]]; then
+        echo "ERRO: CI_REPO/CI_RUNNER_TOKEN vazios. Verifique o template do user-data (Terraform)."
+        exit 1
+      fi
 
       # Azure CLI
       curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
-      # kubectl (binary)
+      # kubectl
       curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
       chmod +x /usr/local/bin/kubectl
       kubectl version --client || true
 
-      # Create runner user + folder
-      id runner || useradd -m -s /bin/bash runner
+      # user + folder
+      id runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
       mkdir -p /opt/actions-runner
-      chown runner:runner /opt/actions-runner
+      chown -R runner:runner /opt/actions-runner
 
-      # Download GitHub Runner
-      su - runner -c "cd /opt/actions-runner && \
+      # download runner
+      su - runner -c 'cd /opt/actions-runner && \
         curl -fsSLO https://github.com/actions/runner/releases/download/v2.316.0/actions-runner-linux-x64-2.316.0.tar.gz && \
-        tar xzf actions-runner-linux-x64-2.316.0.tar.gz"
+        tar xzf actions-runner-linux-x64-2.316.0.tar.gz'
 
-      # Install runner dependencies
+      # deps
       /opt/actions-runner/bin/installdependencies.sh
 
-      # Configure runner (only once)
-      if [ ! -f /opt/actions-runner/.runner ]; then
+      # config
+      if [[ ! -f /opt/actions-runner/.runner ]]; then
         su - runner -c "cd /opt/actions-runner && \
           ./config.sh --unattended \
             --url https://github.com/${ci_repo} \
@@ -46,7 +61,13 @@ runcmd:
             --work _work"
       fi
 
-      # Install and start service
+      test -f /opt/actions-runner/.runner
+
+      # install/start service (root)
       cd /opt/actions-runner
-      ./svc.sh install || true
+      ./svc.sh install
       ./svc.sh start
+
+      # debug status
+      systemctl --no-pager -l status actions.runner* || true
+    ]
