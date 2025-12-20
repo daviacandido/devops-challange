@@ -3,10 +3,14 @@ name: infra-plan-destroy
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: "Environment (ex: aks)"
+      tf_env:
+        description: "Terraform env folder (ex: aks)"
         required: true
         default: "aks"
+      gh_env:
+        description: "GitHub Environment (ex: apply or destroy)"
+        required: true
+        default: "apply"
       confirm:
         description: "Digite DESTROY para confirmar"
         required: true
