@@ -1,0 +1,168 @@
+name: _terraform_infra
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+        default: "aks"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+        shell: bash
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_CLI_ARGS_init: "-no-color"
+      TF_CLI_ARGS_plan: "-no-color"
+      TF_CLI_ARGS_validate: "-no-color"
+
+      TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
+      TF_VAR_ci_repo: ${{ vars.CI_REPO }}
+      TF_VAR_ci_runner_token: ${{ secrets.CI_RUNNER_TOKEN }}
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    outputs:
+      plan_artifact_name: ${{ steps.meta.outputs.plan_artifact_name }}
+      plan_file: ${{ steps.meta.outputs.plan_file }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+          terraform_wrapper: false
+
+      - name: Cache Terraform
+        uses: actions/cache@v4
+        with:
+          path: infra/terraform/.terraform
+          key: ${{ runner.os }}-terraform-${{ hashFiles('infra/terraform/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init (remote state)
+        run: terraform init -backend-config=envs/${{ inputs.environment }}/backend.hcl
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Plan metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          PLAN_FILE="tfplan-${GITHUB_SHA}"
+          ARTIFACT_NAME="terraform-plan-${GITHUB_SHA}"
+          echo "plan_file=${PLAN_FILE}" >> "$GITHUB_OUTPUT"
+          echo "plan_artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform Plan
+        run: |
+          set -euo pipefail
+          PLAN_FILE="${{ steps.meta.outputs.plan_file }}"
+          terraform plan -var-file=envs/${{ inputs.environment }}/terraform.tfvars -out="${PLAN_FILE}"
+          terraform show -no-color "${PLAN_FILE}" > plan.txt
+
+      - name: Debug lockfile before upload
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "SHA: $(git rev-parse HEAD)"
+          echo "PWD: $(pwd)"
+          ls -la
+          test -f .terraform.lock.hcl
+
+      - name: Upload plan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.plan_artifact_name }}
+          include-hidden-files: true
+          path: |
+            infra/terraform/${{ steps.meta.outputs.plan_file }}
+            infra/terraform/plan.txt
+            infra/terraform/.terraform.lock.hcl
+          retention-days: 7
+
+  apply:
+    needs: [plan]
+    runs-on: ubuntu-latest
+    environment: apply
+
+    defaults:
+      run:
+        working-directory: infra/terraform
+        shell: bash
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_CLI_ARGS_init: "-no-color"
+      TF_CLI_ARGS_apply: "-no-color"
+      TF_CLI_ARGS_validate: "-no-color"
+
+      TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
+      TF_VAR_ci_repo: ${{ vars.CI_REPO }}
+      TF_VAR_ci_runner_token: ${{ secrets.CI_RUNNER_TOKEN }}
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout (same commit)
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+          terraform_wrapper: false
+
+      - name: Download plan artifact from plan job
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.plan.outputs.plan_artifact_name }}
+          path: infra/terraform
+
+      - name: Verify downloaded files
+        run: |
+          set -euo pipefail
+          ls -la
+          test -f "${{ needs.plan.outputs.plan_file }}"
+          test -f plan.txt
+          test -f .terraform.lock.hcl
+          sha256sum .terraform.lock.hcl
+
+      - name: Terraform Init (remote state) - lockfile readonly
+        run: |
+          set -euo pipefail
+          terraform init -backend-config=envs/${{ inputs.environment }}/backend.hcl -lockfile=readonly
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Apply (from saved tfplan)
+        run: |
+          set -euo pipefail
+          terraform apply -auto-approve "${{ needs.plan.outputs.plan_file }}"
