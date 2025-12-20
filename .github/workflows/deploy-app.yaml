@@ -1,0 +1,26 @@
+name: deploy-app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    uses: ./.github/workflows/_bootstrap.yaml
+    secrets: inherit
+
+  whoami:
+    needs: [bootstrap]
+    uses: ./.github/workflows/_whoami.yaml
+    secrets: inherit
+
+  dns:
+    needs: [whoami]
+    uses: ./.github/workflows/_dns_cloudflare.yaml
+    secrets: inherit

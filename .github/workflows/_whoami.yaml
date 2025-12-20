@@ -1,9 +1,7 @@
-name: k8s-whoami-deploy
+name: _whoami
 
 on:
-  workflow_run:
-    workflows: ["k8s-bootstrap-deploy"]
-    types: [completed]
+  workflow_call:
 
 permissions:
   contents: read
