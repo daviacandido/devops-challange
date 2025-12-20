@@ -2,13 +2,6 @@ name: logging
 
 on:
   workflow_call:
-    inputs:
-      aks_resource_group:
-        required: true
-        type: string
-      aks_name:
-        required: true
-        type: string
 
 permissions:
   contents: read

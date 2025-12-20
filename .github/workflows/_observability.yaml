@@ -2,27 +2,7 @@ name: _observability
 
 on:
   workflow_call:
-    inputs:
-      aks_resource_group:
-        required: true
-        type: string
-      aks_name:
-        required: true
-        type: string
-      grafana_host:
-        required: true
-        type: string
-    secrets:
-      ARM_CLIENT_ID:
-        required: true
-      ARM_CLIENT_SECRET:
-        required: true
-      ARM_TENANT_ID:
-        required: true
-      ARM_SUBSCRIPTION_ID:
-        required: true
-      GRAFANA_ADMIN_PASSWORD:
-        required: true
+
 
 permissions:
   contents: read
