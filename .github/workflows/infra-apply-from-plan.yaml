@@ -18,6 +18,7 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: apply
+
     defaults:
       run:
         working-directory: infra/terraform
@@ -63,10 +64,12 @@ jobs:
 
             const res = await github.rest.actions.listWorkflowRunArtifacts({ owner, repo, run_id });
             const found = res.data.artifacts.find(a => a.name === expectedName && !a.expired);
+
             if (!found) {
               core.setFailed(`Artifact not found or expired. Expected: ${expectedName}`);
               return;
             }
+
             core.setOutput('artifact_id', String(found.id));
             core.info(`Using artifact: ${found.name} (id=${found.id})`);
 
@@ -89,6 +92,27 @@ jobs:
           echo "Lockfile hash:"
           sha256sum .terraform.lock.hcl
 
+      - name: Clean terraform dir (ensure provider selection matches plan)
+        run: |
+          set -euo pipefail
+
+          # garante que o lockfile e o plan vieram do artifact
+          test -f .terraform.lock.hcl
+          test -f "tfplan-${{ github.event.workflow_run.head_sha }}"
+
+          # remove qualquer seleção/local state de provider anterior
+          rm -rf .terraform
+
+          echo "After cleanup:"
+          ls -la
+
+      - name: Terraform Init (remote state) - lockfile readonly
+        run: |
+          set -euo pipefail
+          terraform init -backend-config=envs/aks/backend.hcl -lockfile=readonly
+
+      - name: Terraform Validate
+        run: terraform validate
 
       - name: Terraform Apply (from saved tfplan)
         run: |
