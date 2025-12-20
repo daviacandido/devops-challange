@@ -26,6 +26,7 @@ concurrency:
 
 jobs:
   plan_destroy:
+    environment: ${{ inputs.gh_env }}
     runs-on: ubuntu-latest
     defaults:
       run:
