@@ -62,7 +62,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform Init (remote state)
-        run: terraform init -backend-config=envs/${{ inputs.environment }}/backend.hcl
+        run: terraform init -backend-config=envs/${{ inputs.tf_env }}/backend.hcl
 
       - name: Terraform Validate
         run: terraform validate
@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           terraform plan -destroy \
-            -var-file=envs/${{ inputs.environment }}/terraform.tfvars \
+            -var-file=envs/${{ inputs.tf_env }}/terraform.tfvars \
             -out=tfplan-destroy
           terraform show -no-color tfplan-destroy > plan-destroy.txt
 
@@ -121,7 +121,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform Init (remote state)
-        run: terraform init -backend-config=envs/${{ inputs.environment }}/backend.hcl
+        run: terraform init -backend-config=envs/${{ inputs.tf_env }}/backend.hcl
 
       - name: Download destroy plan artifact
         uses: actions/download-artifact@v4
