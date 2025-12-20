@@ -8,16 +8,45 @@ packages:
   - apt-transport-https
   - gnupg
   - lsb-release
+  - unzip
 
 runcmd:
-  # Azure CLI
-  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+  - bash -lc |
+      set -euo pipefail
 
-  # kubectl (binary)
-  - curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-  - chmod +x /usr/local/bin/kubectl
-  - kubectl version --client
+      # Azure CLI
+      curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
-  # (opcional) bash completion
-  - echo "source <(kubectl completion bash)" >> /home/azureuser/.bashrc
-  - chown azureuser:azureuser /home/azureuser/.bashrc
+      # kubectl (binary)
+      curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      chmod +x /usr/local/bin/kubectl
+      kubectl version --client || true
+
+      # Create runner user + folder
+      id runner || useradd -m -s /bin/bash runner
+      mkdir -p /opt/actions-runner
+      chown runner:runner /opt/actions-runner
+
+      # Download GitHub Runner
+      su - runner -c "cd /opt/actions-runner && \
+        curl -fsSLO https://github.com/actions/runner/releases/download/v2.316.0/actions-runner-linux-x64-2.316.0.tar.gz && \
+        tar xzf actions-runner-linux-x64-2.316.0.tar.gz"
+
+      # Install runner dependencies
+      /opt/actions-runner/bin/installdependencies.sh
+
+      # Configure runner (only once)
+      if [ ! -f /opt/actions-runner/.runner ]; then
+        su - runner -c "cd /opt/actions-runner && \
+          ./config.sh --unattended \
+            --url https://github.com/${ci_repo} \
+            --token ${ci_runner_token} \
+            --name jumpbox-runner \
+            --labels jumpbox \
+            --work _work"
+      fi
+
+      # Install and start service
+      cd /opt/actions-runner
+      ./svc.sh install || true
+      ./svc.sh start

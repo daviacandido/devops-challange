@@ -27,7 +27,10 @@ jobs:
       TF_CLI_ARGS_init: "-no-color"
       TF_CLI_ARGS_plan: "-no-color"
       TF_CLI_ARGS_validate: "-no-color"
+
       TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
+      TF_VAR_ci_repo: ${{ vars.CI_REPO }}
+      TF_VAR_ci_runner_token: ${{ secrets.CI_RUNNER_TOKEN }}
 
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}

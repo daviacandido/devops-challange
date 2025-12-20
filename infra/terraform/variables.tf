@@ -56,3 +56,13 @@ variable "jumpbox_admin_ssh_public_key" {
   }
 }
 
+variable "ci_repo" {
+  type        = string
+  description = "GitHub repo no formato owner/repo"
+}
+
+variable "ci_runner_token" {
+  type        = string
+  description = "GitHub runner registration token"
+  sensitive   = true
+}
