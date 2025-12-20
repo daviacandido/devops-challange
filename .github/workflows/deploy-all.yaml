@@ -33,9 +33,15 @@ jobs:
   dns_whoami:
     needs: [whoami]
     uses: ./.github/workflows/_dns-cloudflare.yaml
+    with:
+      record_fqdn: ${{ vars.WHOAMI_HOST }} # bry.daviacandido.com.br
+      proxied: true
     secrets: inherit
 
   dns_grafana:
     needs: [observability]
     uses: ./.github/workflows/_dns-cloudflare.yaml
+    with:
+      record_fqdn: ${{ vars.GRAFANA_HOST }} # grafana-bry.daviacandido.com.br
+      proxied: true
     secrets: inherit
