@@ -1,4 +1,4 @@
-name: infra-plan-pr
+name: infra-comenta-pr
 
 on:
   pull_request:
