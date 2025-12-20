@@ -9,6 +9,8 @@ packages:
   - gnupg
   - lsb-release
   - unzip
+  - jq
+  - openssl
 
 write_files:
   - path: /etc/runner.env
@@ -25,55 +27,83 @@ write_files:
       #!/usr/bin/env bash
       set -euo pipefail
 
+      echo "=== Ajustando timezone e sincronização de horário ==="
+
+      # Timezone Brasil
+      timedatectl set-timezone America/Sao_Paulo || true
+
+      # Habilita NTP
+      timedatectl set-ntp true || true
+      systemctl enable --now systemd-timesyncd || true
+
+      # Aguarda sincronização NTP (máx 30s)
+      for i in {1..30}; do
+        if timedatectl show -p NTPSynchronized --value 2>/dev/null | grep -qi "yes"; then
+          break
+        fi
+        sleep 1
+      done
+
+      echo "Status de horário:"
+      timedatectl status || true
+
+      echo "=== Carregando variáveis do runner ==="
       source /etc/runner.env
+
       ci_repo="$CI_REPO"
       ci_runner_token="$CI_RUNNER_TOKEN"
 
       if [[ -z "$ci_repo" || -z "$ci_runner_token" ]]; then
-        echo "ERRO: CI_REPO/CI_RUNNER_TOKEN vazios. Verifique o template do cloud-init (Terraform/custom_data)."
+        echo "ERRO: CI_REPO ou CI_RUNNER_TOKEN vazios."
         exit 1
       fi
 
-      # Azure CLI
+      echo "=== Instalando Azure CLI ==="
       curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
-      # kubectl (binary)
-      curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      chmod +x /usr/local/bin/kubectl
+      echo "=== Instalando kubectl ==="
+      if [[ ! -x /usr/local/bin/kubectl ]]; then
+        curl -fsSL -o /usr/local/bin/kubectl \
+          "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x /usr/local/bin/kubectl
+      fi
       kubectl version --client || true
 
-      # Create runner user + folder
+      echo "=== Criando usuário runner ==="
       id runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
+
       mkdir -p /opt/actions-runner
       chown -R runner:runner /opt/actions-runner
 
-      # Download GitHub Runner
-      su - runner -c 'cd /opt/actions-runner && \
-        curl -fsSLO https://github.com/actions/runner/releases/download/v2.316.0/actions-runner-linux-x64-2.316.0.tar.gz && \
-        tar xzf actions-runner-linux-x64-2.316.0.tar.gz'
+      echo "=== Instalando GitHub Actions Runner ==="
+      if [[ ! -f /opt/actions-runner/config.sh ]]; then
+        su - runner -c 'cd /opt/actions-runner && \
+          curl -fsSLO https://github.com/actions/runner/releases/download/v2.316.0/actions-runner-linux-x64-2.316.0.tar.gz && \
+          tar xzf actions-runner-linux-x64-2.316.0.tar.gz'
+      fi
 
-      # Install runner dependencies
+      echo "=== Instalando dependências do runner ==="
       /opt/actions-runner/bin/installdependencies.sh
 
-      # Configure runner (only once)
+      echo "=== Configurando runner (se necessário) ==="
       if [[ ! -f /opt/actions-runner/.runner ]]; then
         su - runner -c "cd /opt/actions-runner && \
           ./config.sh --unattended \
-            --url https://github.com/${ci_repo} \
-            --token ${ci_runner_token} \
+            --url https://github.com/$ci_repo \
+            --token $ci_runner_token \
             --name jumpbox-runner \
             --labels jumpbox \
             --work _work"
       fi
 
-      # Ensure config happened
       test -f /opt/actions-runner/.runner
 
-      # Install and start service
+      echo "=== Instalando e iniciando serviço ==="
       cd /opt/actions-runner
       ./svc.sh install || true
       ./svc.sh start || true
 
+      echo "=== Status do serviço ==="
       systemctl --no-pager -l status 'actions.runner*' || true
 
 runcmd:
