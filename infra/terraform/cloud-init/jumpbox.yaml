@@ -32,6 +32,7 @@ write_files:
       timedatectl set-ntp true || true
       systemctl enable --now systemd-timesyncd || true
 
+      # shellcheck disable=SC1091
       source /etc/runner.env
       ci_repo="$CI_REPO"
       ci_runner_token="$CI_RUNNER_TOKEN"
@@ -70,9 +71,12 @@ write_files:
       fi
 
       echo "=== Criando service systemd (User=runner) ==="
-      cat > /etc/systemd/system/actions.runner.${ci_repo//\//-}.jumpbox-runner.service <<EOF
+      repo_svc="$(echo "$ci_repo" | tr '/' '-')"
+      svc_name="actions.runner.$repo_svc.jumpbox-runner.service"
+
+      cat > "/etc/systemd/system/$svc_name" <<EOF
       [Unit]
-      Description=GitHub Actions Runner (${ci_repo}.jumpbox-runner)
+      Description=GitHub Actions Runner ($ci_repo.jumpbox-runner)
       After=network-online.target
       Wants=network-online.target
 
@@ -91,9 +95,8 @@ write_files:
       EOF
 
       systemctl daemon-reload
-      systemctl enable --now actions.runner.${ci_repo//\//-}.jumpbox-runner.service
-
-      systemctl status actions.runner.${ci_repo//\//-}.jumpbox-runner.service --no-pager -l || true
+      systemctl enable --now "$svc_name"
+      systemctl status "$svc_name" --no-pager -l || true
 
 runcmd:
   - [ bash, -lc, "/usr/local/bin/setup-gh-runner.sh > /var/log/setup-gh-runner.log 2>&1" ]
