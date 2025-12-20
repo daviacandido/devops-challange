@@ -46,4 +46,3 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
 
   vnet_subnet_id = azurerm_subnet.snet_aks.id
 }
-
