@@ -13,8 +13,3 @@ output "jumpbox_private_ip" {
 output "bastion_public_ip" {
   value = azurerm_public_ip.bastion_pip.ip_address
 }
-
-output "bry_fqdn" {
-  description = "Public FQDN for WhoAmI application"
-  value       = "bry.${var.dns_zone_name}"
-}

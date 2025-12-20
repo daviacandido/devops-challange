@@ -62,18 +62,4 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
-variable "cloudflare_zone_id" {
-  type        = string
-  description = "Cloudflare Zone ID."
-}
 
-variable "dns_zone_name" {
-  type        = string
-  description = "Base domain"
-}
-
-variable "bry_ingress_public_ip" {
-  type        = string
-  description = "Public IP of ingress-nginx LoadBalancer (origin)."
-  default     = ""
-}
