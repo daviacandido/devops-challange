@@ -52,8 +52,15 @@ jobs:
       - name: Apply kube-prometheus (CRDs first)
         run: |
           set -euo pipefail
-          kubectl apply -f k8s/observability/kube-prometheus/manifests/setup
-          sleep 20
+
+          # 1) CRDs/setup: NÃO use apply (evita last-applied gigante nas annotations)
+          kubectl create -f k8s/observability/kube-prometheus/manifests/setup \
+            --save-config=false --validate=false || true
+
+          # 2) Espera CRDs registrarem (substitui sleep)
+          kubectl wait --for=condition=Established crd --all --timeout=10m
+
+          # 3) Resto: pode usar apply normal
           kubectl apply -f k8s/observability/kube-prometheus/manifests
 
       - name: Configure Grafana admin credentials
