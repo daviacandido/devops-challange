@@ -90,13 +90,6 @@ jobs:
           sha256sum .terraform.lock.hcl
 
 
-
-      - name: Terraform Init (remote state) - lockfile readonly
-        run: |
-          set -euo pipefail
-          test -f .terraform.lock.hcl
-          terraform init -backend-config=envs/aks/backend.hcl -lockfile=readonly
-
       - name: Terraform Apply (from saved tfplan)
         run: |
           set -euo pipefail
