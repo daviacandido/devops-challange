@@ -72,8 +72,9 @@ kind: ClusterRole
 metadata:
   name: ingress-nginx
 rules:
-  - apiGroups: [""]
+  - apiGroups: ["discovery.k8s.io"]
     resources:
+      - endpointslices
       - configmaps
       - endpoints
       - nodes
