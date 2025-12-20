@@ -56,10 +56,3 @@ variable "jumpbox_admin_ssh_public_key" {
   }
 }
 
-variable "cloudflare_api_token" {
-  type        = string
-  description = "Cloudflare API token."
-  sensitive   = true
-}
-
-
