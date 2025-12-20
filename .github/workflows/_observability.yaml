@@ -15,8 +15,8 @@ jobs:
         shell: bash
 
     env:
-      AKS_RESOURCE_GROUP: ${{ inputs.aks_resource_group }}
-      AKS_NAME: ${{ inputs.aks_name }}
+      AKS_RESOURCE_GROUP: ${{ vars.aks_resource_group }}
+      AKS_NAME: ${{ vars.aks_name }}
 
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
