@@ -1,23 +1,21 @@
-name: infra-apply-from-plan
+name: infra-plan-main
 
 on:
-  workflow_run:
-    workflows: ["infra-plan-main"]
-    types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
-  group: infra-apply
-  cancel-in-progress: false
+  group: infra-plan-main-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  apply:
-    if: github.event.workflow_run.conclusion == 'success'
+  plan:
     runs-on: ubuntu-latest
-    environment: apply
     defaults:
       run:
         working-directory: infra/terraform
@@ -27,7 +25,7 @@ jobs:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       TF_CLI_ARGS_init: "-no-color"
-      TF_CLI_ARGS_apply: "-no-color"
+      TF_CLI_ARGS_plan: "-no-color"
       TF_CLI_ARGS_validate: "-no-color"
 
       TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
@@ -40,10 +38,8 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
     steps:
-      - name: Checkout (same commit SHA)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -51,53 +47,41 @@ jobs:
           terraform_version: 1.6.6
           terraform_wrapper: false
 
-      - name: Get artifact id from plan run (API)
-        id: artifact
-        uses: actions/github-script@v7
+      - name: Cache Terraform
+        uses: actions/cache@v4
         with:
-          script: |
-            const run_id = context.payload.workflow_run.id;
-            const sha = context.payload.workflow_run.head_sha;
-            const expectedName = `terraform-plan-${sha}`;
-            const { owner, repo } = context.repo;
+          path: |
+            infra/terraform/.terraform
+            infra/terraform/.terraform.lock.hcl
+          key: ${{ runner.os }}-terraform-${{ hashFiles('infra/terraform/**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terraform-
 
-            const res = await github.rest.actions.listWorkflowRunArtifacts({ owner, repo, run_id });
-            const found = res.data.artifacts.find(a => a.name === expectedName && !a.expired);
-            if (!found) {
-              core.setFailed(`Artifact not found or expired. Expected: ${expectedName}`);
-              return;
-            }
-            core.setOutput('artifact_id', String(found.id));
-            core.info(`Using artifact: ${found.name} (id=${found.id})`);
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
 
-      - name: Download artifact by id (zip) and extract INTO infra/terraform
+      - name: Terraform Init (remote state)
+        run: terraform init -backend-config=envs/aks/backend.hcl
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
         run: |
           set -euo pipefail
-          ARTIFACT_ID="${{ steps.artifact.outputs.artifact_id }}"
+          PLAN_FILE="tfplan-${GITHUB_SHA}"
+          terraform plan -var-file=envs/aks/terraform.tfvars -out="${PLAN_FILE}"
+          terraform show -no-color "${PLAN_FILE}" > plan.txt
+          echo "plan_file=${PLAN_FILE}" >> "$GITHUB_OUTPUT"
 
-          curl -L \
-            -H "Authorization: Bearer ${{ github.token }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/${ARTIFACT_ID}/zip" \
-            -o artifact.zip
-
-          unzip -o artifact.zip -d infra/terraform
-          rm -f artifact.zip
-
-          echo "Artifacts extracted:"
-          ls -la infra/terraform
-          echo "Lockfile hash:"
-          sha256sum infra/terraform/.terraform.lock.hcl
-
-      - name: Terraform Init (remote state) - lockfile readonly
-        run: |
-          set -euo pipefail
-          test -f .terraform.lock.hcl
-          terraform init -backend-config=envs/aks/backend.hcl -lockfile=readonly
-
-      - name: Terraform Apply (from saved tfplan)
-        run: |
-          set -euo pipefail
-          PLAN_FILE="tfplan-${{ github.event.workflow_run.head_sha }}"
-          test -f "${PLAN_FILE}"
-          terraform apply -auto-approve "${PLAN_FILE}"
+      - name: Upload plan artifacts
+        if: always() && steps.plan.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ github.sha }}
+          path: |
+            infra/terraform/${{ steps.plan.outputs.plan_file }}
+            infra/terraform/plan.txt
+            infra/terraform/.terraform.lock.hcl
+          retention-days: 7
