@@ -1,18 +1,14 @@
-name: infra-plan-destroy
+name: infra-destroy
 
 on:
   workflow_dispatch:
     inputs:
-      tf_env:
-        description: "Terraform env folder (ex: aks)"
+      environment:
+        description: "Environment (ex: aks)"
         required: true
         default: "aks"
-      gh_env:
-        description: "GitHub Environment (ex: apply)"
-        required: true
-        default: "apply"
       confirm:
-        description: "Digite DESTROY para confirmar"
+        description: 'Type DESTROY to confirm'
         required: true
         default: ""
 
@@ -21,90 +17,14 @@ permissions:
   actions: read
 
 concurrency:
-  group: infra-plan-destroy
+  group: infra-destroy
   cancel-in-progress: false
 
 jobs:
-  plan_destroy:
-    name: Plan Destroy
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.gh_env }}
-
-    defaults:
-      run:
-        working-directory: infra/terraform
-        shell: bash
-
-    env:
-      TF_IN_AUTOMATION: "true"
-      TF_INPUT: "false"
-      TF_CLI_ARGS_init: "-no-color"
-      TF_CLI_ARGS_plan: "-no-color"
-      TF_CLI_ARGS_validate: "-no-color"
-
-      # Azure
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-
-      # Terraform vars
-      TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
-      TF_VAR_bry_ingress_public_ip: ${{ vars.BRY_INGRESS_PUBLIC_IP }}
-      TF_VAR_dns_zone_name: ${{ vars.DNS_ZONE_NAME }}
-      TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
-      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-      # Cloudflare provider official env var (robust)
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-    steps:
-      - name: Checkout (main)
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
-          terraform_wrapper: false
-
-      - name: Debug Cloudflare token presence (no secret output)
-        run: |
-          set -euo pipefail
-          test -n "${CLOUDFLARE_API_TOKEN:-}" && echo "CLOUDFLARE_API_TOKEN OK" || (echo "CLOUDFLARE_API_TOKEN VAZIO" && exit 1)
-          test -n "${TF_VAR_cloudflare_api_token:-}" && echo "TF_VAR_cloudflare_api_token OK" || echo "TF_VAR_cloudflare_api_token VAZIO (ok se provider usa CLOUDFLARE_API_TOKEN)"
-
-      - name: Terraform Init (remote state)
-        run: terraform init -backend-config=envs/${{ inputs.tf_env }}/backend.hcl
-
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan Destroy
-        run: |
-          set -euo pipefail
-          terraform plan -destroy \
-            -var-file=envs/${{ inputs.tf_env }}/terraform.tfvars \
-            -out=tfplan-destroy
-          terraform show -no-color tfplan-destroy > plan-destroy.txt
-
-      - name: Upload destroy plan artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-destroy-plan
-          path: |
-            infra/terraform/tfplan-destroy
-            infra/terraform/plan-destroy.txt
-          retention-days: 7
-
   destroy:
-    name: Apply Destroy
-    needs: plan_destroy
-    if: github.ref == 'refs/heads/main' && inputs.confirm == 'DESTROY'
+    if: ${{ inputs.confirm == 'DESTROY' }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.gh_env }}
+    environment: apply
 
     defaults:
       run:
@@ -118,21 +38,12 @@ jobs:
       TF_CLI_ARGS_apply: "-no-color"
       TF_CLI_ARGS_validate: "-no-color"
 
-      # Azure
+      TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
+
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-
-      # Terraform vars
-      TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
-      TF_VAR_bry_ingress_public_ip: ${{ vars.BRY_INGRESS_PUBLIC_IP }}
-      TF_VAR_dns_zone_name: ${{ vars.DNS_ZONE_NAME }}
-      TF_VAR_cloudflare_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
-      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-
-      # Cloudflare provider official env var (robust)
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
     steps:
       - name: Checkout (main)
@@ -146,22 +57,14 @@ jobs:
           terraform_version: 1.6.6
           terraform_wrapper: false
 
-      - name: Debug Cloudflare token presence (no secret output)
+      - name: Terraform Init
+        run: terraform init -backend-config=envs/${{ inputs.environment }}/backend.hcl
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Destroy
         run: |
           set -euo pipefail
-          test -n "${CLOUDFLARE_API_TOKEN:-}" && echo "CLOUDFLARE_API_TOKEN OK" || (echo "CLOUDFLARE_API_TOKEN VAZIO" && exit 1)
-
-      - name: Terraform Init (remote state)
-        run: terraform init -backend-config=envs/${{ inputs.tf_env }}/backend.hcl
-
-      - name: Download destroy plan artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-destroy-plan
-          path: infra/terraform
-
-      - name: Terraform Apply Destroy Plan
-        run: |
-          set -euo pipefail
-          test -f tfplan-destroy
-          terraform apply -auto-approve tfplan-destroy
+          terraform destroy -auto-approve \
+            -var-file=envs/${{ inputs.environment }}/terraform.tfvars

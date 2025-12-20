@@ -79,5 +79,6 @@ jobs:
           name: terraform-plan-${{ github.sha }}
           path: |
             infra/terraform/${{ steps.plan.outputs.plan_file }}
+            infra/terraform/plan.txt
             infra/terraform/.terraform.lock.hcl
           retention-days: 7

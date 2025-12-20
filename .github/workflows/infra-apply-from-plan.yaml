@@ -20,6 +20,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     environment: apply
+
     defaults:
       run:
         working-directory: infra/terraform
@@ -31,6 +32,7 @@ jobs:
       TF_CLI_ARGS_init: "-no-color"
       TF_CLI_ARGS_apply: "-no-color"
       TF_CLI_ARGS_validate: "-no-color"
+
       TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
 
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -49,6 +51,12 @@ jobs:
         with:
           terraform_version: 1.6.6
           terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init -backend-config=envs/aks/backend.hcl
+
+      - name: Terraform Validate
+        run: terraform validate
 
       - name: Get artifact id from plan run (API)
         id: artifact
@@ -72,26 +80,14 @@ jobs:
         run: |
           set -euo pipefail
           ARTIFACT_ID="${{ steps.artifact.outputs.artifact_id }}"
-
           curl -L \
             -H "Authorization: Bearer ${{ github.token }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/${ARTIFACT_ID}/zip" \
             -o artifact.zip
-
           unzip -o artifact.zip -d .
           rm -f artifact.zip
-
-          echo "Files after extract:"
           ls -la
-
-          test -f .terraform.lock.hcl
-
-      - name: Terraform Init (remote state, lockfile readonly)
-        run: terraform init -backend-config=envs/aks/backend.hcl -lockfile=readonly
-
-      - name: Terraform Validate
-        run: terraform validate
 
       - name: Terraform Apply (from saved tfplan)
         run: |
