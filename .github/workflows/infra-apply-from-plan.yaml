@@ -104,7 +104,7 @@ jobs:
       - name: Terraform Init (remote state) - lockfile readonly
         run: |
           set -euo pipefail
-          terraform init -backend-config=envs/aks/backend.hcl
+          terraform init -backend-config=envs/aks/backend.hcl -lockfile=readonly
 
       - name: Terraform Validate
         run: terraform validate

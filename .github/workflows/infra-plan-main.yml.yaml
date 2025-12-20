@@ -50,12 +50,11 @@ jobs:
       - name: Cache Terraform
         uses: actions/cache@v4
         with:
-          path: |
-            infra/terraform/.terraform
-            infra/terraform/.terraform.lock.hcl
-          key: ${{ runner.os }}-terraform-${{ hashFiles('infra/terraform/**/.terraform.lock.hcl') }}
+          path: infra/terraform/.terraform
+          key: ${{ runner.os }}-terraform-${{ hashFiles('infra/terraform/.terraform.lock.hcl') }}
           restore-keys: |
             ${{ runner.os }}-terraform-
+
 
       - name: Terraform Format
         run: terraform fmt -check -recursive
@@ -80,21 +79,21 @@ jobs:
         run: |
           set -euo pipefail
           echo "SHA: $(git rev-parse HEAD)"
-          echo "Workspace root:"
+          echo "PWD: $(pwd)"
+          echo "List current dir:"
           ls -la
-          echo "infra/terraform:"
-          ls -la infra/terraform
           echo "Lockfile exists?"
-          test -f infra/terraform/.terraform.lock.hcl && echo "OK: lockfile presente" || (echo "MISSING: lockfile não existe aqui" && exit 1)
-
+          test -f .terraform.lock.hcl && echo "OK: lockfile presente" || (echo "MISSING: lockfile não existe aqui" && exit 1)
 
       - name: Upload plan artifacts
         if: always() && steps.plan.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan-${{ github.sha }}
+          include-hidden-files: true
           path: |
             infra/terraform/${{ steps.plan.outputs.plan_file }}
             infra/terraform/plan.txt
             infra/terraform/.terraform.lock.hcl
           retention-days: 7
+
