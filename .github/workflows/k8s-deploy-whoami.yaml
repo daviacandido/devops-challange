@@ -1,0 +1,87 @@
+name: k8s-deploy-whoami
+
+on:
+  workflow_run:
+    workflows: ["k8s-bootstrap"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k8s-deploy-whoami
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: [self-hosted, jumpbox]
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }}
+      AKS_NAME: ${{ vars.AKS_NAME }}
+      WHOAMI_HOST: ${{ vars.WHOAMI_HOST }}
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (SP)
+        run: |
+          set -euo pipefail
+          az login --service-principal \
+            -u "${ARM_CLIENT_ID}" \
+            -p "${ARM_CLIENT_SECRET}" \
+            --tenant "${ARM_TENANT_ID}" >/dev/null
+          az account set --subscription "${ARM_SUBSCRIPTION_ID}"
+
+      - name: AKS credentials (admin)
+        run: |
+          set -euo pipefail
+          rm -f ~/.kube/config || true
+          az aks get-credentials \
+            --resource-group "${AKS_RESOURCE_GROUP}" \
+            --name "${AKS_NAME}" \
+            --admin \
+            --overwrite-existing
+
+      - name: Apply WhoAmI manifests
+        run: |
+          set -euo pipefail
+          test -n "${WHOAMI_HOST}"
+
+          kubectl apply -f k8s/apps/whoami/00-namespace.yaml
+          kubectl apply -f k8s/apps/whoami/10-deployment.yaml
+          kubectl apply -f k8s/apps/whoami/20-service.yaml
+          kubectl apply -f k8s/apps/whoami/30-hpa.yaml
+          kubectl apply -f k8s/apps/whoami/40-clusterissuer.yaml
+          kubectl apply -f k8s/apps/whoami/50-ingress.yaml
+
+      - name: Wait rollout
+        run: |
+          set -euo pipefail
+          kubectl -n whoami rollout status deploy/whoami --timeout=10m
+          kubectl -n whoami get pods,svc,ingress -o wide
+
+      - name: Wait Certificate ready
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            READY="$(kubectl -n whoami get certificate whoami-tls -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
+            if [ "${READY}" = "True" ]; then
+              kubectl -n whoami get certificate whoami-tls -o wide
+              exit 0
+            fi
+            echo "Waiting certificate whoami-tls... (${i}/60)"
+            sleep 10
+          done
+          kubectl -n whoami describe certificate whoami-tls || true
+          exit 1

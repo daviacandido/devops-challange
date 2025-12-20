@@ -1,0 +1,83 @@
+name: k8s-bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: k8s-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: [self-hosted, jumpbox]
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }}
+      AKS_NAME: ${{ vars.AKS_NAME }}
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (SP)
+        run: |
+          set -euo pipefail
+          az login --service-principal \
+            -u "${ARM_CLIENT_ID}" \
+            -p "${ARM_CLIENT_SECRET}" \
+            --tenant "${ARM_TENANT_ID}" >/dev/null
+          az account set --subscription "${ARM_SUBSCRIPTION_ID}"
+
+      - name: AKS credentials (admin)
+        run: |
+          set -euo pipefail
+          rm -f ~/.kube/config || true
+          az aks get-credentials \
+            --resource-group "${AKS_RESOURCE_GROUP}" \
+            --name "${AKS_NAME}" \
+            --admin \
+            --overwrite-existing
+
+      - name: Install Metrics Server
+        run: |
+          set -euo pipefail
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+      - name: Install Ingress NGINX
+        run: |
+          set -euo pipefail
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/cloud/deploy.yaml
+
+      - name: Install cert-manager
+        run: |
+          set -euo pipefail
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+
+      - name: Wait ingress-nginx ready
+        run: |
+          set -euo pipefail
+          kubectl -n ingress-nginx rollout status deploy/ingress-nginx-controller --timeout=10m
+
+      - name: Wait cert-manager ready
+        run: |
+          set -euo pipefail
+          kubectl -n cert-manager rollout status deploy/cert-manager --timeout=10m
+          kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=10m
+          kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=10m
+
+      - name: Print ingress service
+        run: |
+          set -euo pipefail
+          kubectl -n ingress-nginx get svc ingress-nginx-controller -o wide
