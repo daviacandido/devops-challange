@@ -1,0 +1,102 @@
+name: _observability
+
+on:
+  workflow_call:
+    inputs:
+      aks_resource_group:
+        required: true
+        type: string
+      aks_name:
+        required: true
+        type: string
+      grafana_host:
+        required: true
+        type: string
+    secrets:
+      ARM_CLIENT_ID:
+        required: true
+      ARM_CLIENT_SECRET:
+        required: true
+      ARM_TENANT_ID:
+        required: true
+      ARM_SUBSCRIPTION_ID:
+        required: true
+      GRAFANA_ADMIN_PASSWORD:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, jumpbox]
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      AKS_RESOURCE_GROUP: ${{ inputs.aks_resource_group }}
+      AKS_NAME: ${{ inputs.aks_name }}
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+      GRAFANA_HOST: ${{ inputs.grafana_host }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (SP)
+        run: |
+          set -euo pipefail
+          az login --service-principal \
+            -u "${ARM_CLIENT_ID}" \
+            -p "${ARM_CLIENT_SECRET}" \
+            --tenant "${ARM_TENANT_ID}" >/dev/null
+          az account set --subscription "${ARM_SUBSCRIPTION_ID}"
+
+      - name: AKS credentials (admin)
+        run: |
+          set -euo pipefail
+          rm -f ~/.kube/config || true
+          az aks get-credentials \
+            --resource-group "${AKS_RESOURCE_GROUP}" \
+            --name "${AKS_NAME}" \
+            --admin \
+            --overwrite-existing
+
+      - name: Apply kube-prometheus (CRDs first)
+        run: |
+          set -euo pipefail
+          kubectl apply -f k8s/observability/kube-prometheus/manifests/setup
+          sleep 20
+          kubectl apply -f k8s/observability/kube-prometheus/manifests
+
+      - name: Configure Grafana admin credentials
+        run: |
+          set -euo pipefail
+          test -n "${GRAFANA_ADMIN_PASSWORD}"
+
+          kubectl -n monitoring create secret generic grafana-admin \
+            --from-literal=GF_SECURITY_ADMIN_USER=admin \
+            --from-literal=GF_SECURITY_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl -n monitoring set env deploy/grafana --from=secret/grafana-admin
+
+      - name: Apply Grafana Ingress
+        run: |
+          set -euo pipefail
+          # se você quiser parametrizar host no yaml, dá pra usar envsubst. Por ora,
+          # mantém o yaml já com o host fixo grafana-bry...
+          kubectl apply -f k8s/observability/extra/20-grafana-ingress.yaml
+
+      - name: Wait Grafana
+        run: |
+          set -euo pipefail
+          kubectl -n monitoring rollout status deploy/grafana --timeout=10m
+          kubectl -n monitoring get pods,svc,ingress -o wide

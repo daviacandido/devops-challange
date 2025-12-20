@@ -1,4 +1,4 @@
-name: _bootstrap
+name: _app-bootstrap
 
 on:
   workflow_call:

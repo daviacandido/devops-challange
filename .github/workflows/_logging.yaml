@@ -1,0 +1,97 @@
+name: logging
+
+on:
+  workflow_call:
+    inputs:
+      aks_resource_group:
+        required: true
+        type: string
+      aks_name:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k8s-logging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, jumpbox]
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      AKS_RESOURCE_GROUP: ${{ inputs.aks_resource_group }}
+      AKS_NAME: ${{ inputs.aks_name }}
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (SP)
+        run: |
+          set -euo pipefail
+          az login --service-principal \
+            -u "${ARM_CLIENT_ID}" \
+            -p "${ARM_CLIENT_SECRET}" \
+            --tenant "${ARM_TENANT_ID}" >/dev/null
+          az account set --subscription "${ARM_SUBSCRIPTION_ID}"
+
+      - name: AKS credentials (admin)
+        run: |
+          set -euo pipefail
+          rm -f ~/.kube/config || true
+          az aks get-credentials \
+            --resource-group "${AKS_RESOURCE_GROUP}" \
+            --name "${AKS_NAME}" \
+            --admin \
+            --overwrite-existing
+
+      - name: Apply Logging manifests (Loki + Promtail + Grafana datasource)
+        run: |
+          set -euo pipefail
+
+          kubectl apply -f k8s/logging/00-namespace.yaml
+          kubectl apply -f k8s/logging/10-loki.yaml
+          kubectl apply -f k8s/logging/20-promtail.yaml
+          kubectl apply -f k8s/logging/30-grafana-datasource-loki.yaml
+
+      - name: Wait logging components
+        run: |
+          set -euo pipefail
+
+          # Loki pode ser StatefulSet ou Deployment dependendo do seu yaml
+          kubectl -n logging get deploy,statefulset,daemonset -o wide || true
+
+          if kubectl -n logging get deploy loki >/dev/null 2>&1; then
+            kubectl -n logging rollout status deploy/loki --timeout=10m
+          fi
+
+          if kubectl -n logging get statefulset loki >/dev/null 2>&1; then
+            kubectl -n logging rollout status statefulset/loki --timeout=10m
+          fi
+
+          if kubectl -n logging get daemonset promtail >/dev/null 2>&1; then
+            kubectl -n logging rollout status daemonset/promtail --timeout=10m
+          fi
+
+          kubectl -n logging get pods,svc -o wide
+
+      - name: Smoke test Loki (in-cluster)
+        run: |
+          set -euo pipefail
+
+          # tenta resolver o serviço loki dentro do cluster (ajuste se seu Service tiver outro nome)
+          kubectl -n logging run -it --rm tmp-curl \
+            --image=curlimages/curl:8.6.0 \
+            --restart=Never -- \
+            sh -lc 'curl -sS -m 5 http://loki.logging.svc.cluster.local:3100/ready && echo "OK"'

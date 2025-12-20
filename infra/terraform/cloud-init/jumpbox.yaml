@@ -49,15 +49,22 @@ write_files:
       mkdir -p /opt/actions-runner/_diag /opt/actions-runner/_work
       chown -R runner:runner /opt/actions-runner
 
-      echo "=== Download runner ==="
-      if [[ ! -f /opt/actions-runner/config.sh ]]; then
+      echo "=== Download runner (garantindo binários) ==="
+      if [[ ! -x /opt/actions-runner/runsvc.sh ]]; then
+        echo "Runner não encontrado (runsvc.sh ausente). Baixando e extraindo..."
         su - runner -c 'cd /opt/actions-runner && \
+          rm -f actions-runner-linux-x64-*.tar.gz && \
           curl -fsSLO https://github.com/actions/runner/releases/download/v2.316.0/actions-runner-linux-x64-2.316.0.tar.gz && \
           tar xzf actions-runner-linux-x64-2.316.0.tar.gz'
       fi
 
+      echo "=== Validando extração ==="
+      test -x /opt/actions-runner/runsvc.sh
+      test -x /opt/actions-runner/config.sh
+      test -x /opt/actions-runner/run.sh
+
       echo "=== Dependências ==="
-      /opt/actions-runner/bin/installdependencies.sh
+      sudo /opt/actions-runner/bin/installdependencies.sh
 
       echo "=== Configuração do runner ==="
       if [[ ! -f /opt/actions-runner/.runner ]]; then
@@ -84,7 +91,7 @@ write_files:
       User=runner
       Group=runner
       WorkingDirectory=/opt/actions-runner
-      ExecStart=/opt/actions-runner/runsvc.sh
+      ExecStart=/opt/actions-runner/bin/runsvc.sh
       Restart=always
       RestartSec=5
       KillMode=process

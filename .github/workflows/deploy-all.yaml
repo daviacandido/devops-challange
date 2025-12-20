@@ -1,0 +1,67 @@
+name: deploy-all
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-all
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    uses: ./.github/workflows/_app-bootstrap.yaml
+    secrets: inherit
+    with:
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}
+      aks_name: ${{ vars.AKS_NAME }}
+
+  observability:
+    needs: [bootstrap]
+    uses: ./.github/workflows/_observability.yaml
+    secrets: inherit
+    with:
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}
+      aks_name: ${{ vars.AKS_NAME }}
+      grafana_host: grafana-bry.daviacandido.com.br
+
+  logging:
+    needs: [observability]
+    uses: ./.github/workflows/_logging.yaml
+    secrets: inherit
+    with:
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}
+      aks_name: ${{ vars.AKS_NAME }}
+
+  whoami:
+    needs: [logging]
+    uses: ./.github/workflows/_whoami.yaml
+    secrets: inherit
+    with:
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}
+      aks_name: ${{ vars.AKS_NAME }}
+      whoami_host: ${{ vars.WHOAMI_HOST }}
+
+  dns_whoami:
+    needs: [whoami]
+    uses: ./.github/workflows/_dns-cloudflare.yaml
+    secrets: inherit
+    with:
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}
+      aks_name: ${{ vars.AKS_NAME }}
+      zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      record_fqdn: ${{ vars.WHOAMI_HOST }}
+      record_name: bry
+
+  dns_grafana:
+    needs: [observability]
+    uses: ./.github/workflows/_dns-cloudflare.yaml
+    secrets: inherit
+    with:
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}
+      aks_name: ${{ vars.AKS_NAME }}
+      zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      record_fqdn: grafana-bry.daviacandido.com.br
+      record_name: grafana-bry
