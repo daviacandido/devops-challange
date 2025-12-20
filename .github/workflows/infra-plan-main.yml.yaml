@@ -75,6 +75,19 @@ jobs:
           terraform show -no-color "${PLAN_FILE}" > plan.txt
           echo "plan_file=${PLAN_FILE}" >> "$GITHUB_OUTPUT"
 
+      - name: Debug lockfile before upload
+        if: always() && steps.plan.outcome == 'success'
+        run: |
+          set -euo pipefail
+          echo "SHA: $(git rev-parse HEAD)"
+          echo "Workspace root:"
+          ls -la
+          echo "infra/terraform:"
+          ls -la infra/terraform
+          echo "Lockfile exists?"
+          test -f infra/terraform/.terraform.lock.hcl && echo "OK: lockfile presente" || (echo "MISSING: lockfile não existe aqui" && exit 1)
+
+
       - name: Upload plan artifacts
         if: always() && steps.plan.outcome == 'success'
         uses: actions/upload-artifact@v4

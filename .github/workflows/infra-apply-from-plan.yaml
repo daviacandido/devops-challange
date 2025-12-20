@@ -73,24 +73,6 @@ jobs:
             core.setOutput('artifact_id', String(found.id));
             core.info(`Using artifact: ${found.name} (id=${found.id})`);
 
-      - name: Clean working directory before extracting artifact
-        run: |
-          set -euo pipefail
-          echo "Before cleanup:"
-          ls -la
-
-          # remove qualquer seleção/local state/plugins anteriores
-          rm -rf .terraform || true
-
-          # remove lockfile local (vamos usar o do artifact)
-          rm -f .terraform.lock.hcl || true
-
-          # remove qualquer plan/outputs antigos
-          rm -f tfplan tfplan-* plan.txt plan-*.txt artifact.zip || true
-
-          echo "After cleanup:"
-          ls -la
-
       - name: Download artifact by id (zip) and extract (into working-directory)
         run: |
           set -euo pipefail
@@ -108,9 +90,13 @@ jobs:
           echo "Artifacts extracted:"
           ls -la
 
-          echo "Lockfile hash:"
-          test -f .terraform.lock.hcl
-          sha256sum .terraform.lock.hcl
+          echo "Lockfile hash (from repo checkout, unless artifact overwrote it):"
+          if [[ -f .terraform.lock.hcl ]]; then
+            sha256sum .terraform.lock.hcl
+          else
+            echo "::error::.terraform.lock.hcl não encontrado em infra/terraform após o checkout. Verifique se ele está commitado nesse SHA."
+            exit 1
+          fi
 
           echo "Plan files:"
           ls -la tfplan* || true
@@ -118,7 +104,7 @@ jobs:
       - name: Terraform Init (remote state) - lockfile readonly
         run: |
           set -euo pipefail
-          terraform init -backend-config=envs/aks/backend.hcl -lockfile=readonly
+          terraform init -backend-config=envs/aks/backend.hcl
 
       - name: Terraform Validate
         run: terraform validate
