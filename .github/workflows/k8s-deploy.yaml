@@ -1,4 +1,4 @@
-name: deploy-all
+name: k8s-deploy
 
 on:
   workflow_dispatch:
