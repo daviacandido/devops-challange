@@ -24,7 +24,7 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-      GRAFANA_HOST: ${{ inputs.grafana_host }}
+      GRAFANA_HOST: ${{ vars.grafana_host }}
 
     steps:
       - name: Checkout
