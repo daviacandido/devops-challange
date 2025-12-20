@@ -1,3 +1,9 @@
+resource "azurerm_network_security_group" "nsg_jumpbox" {
+  name                = "nsg-jumpbox"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
 resource "azurerm_subnet_network_security_group_association" "jumpbox" {
   subnet_id                 = azurerm_subnet.snet_jumpbox.id
   network_security_group_id = azurerm_network_security_group.nsg_jumpbox.id
@@ -14,6 +20,7 @@ resource "azurerm_network_interface" "jumpbox_nic" {
     private_ip_address_allocation = "Dynamic"
   }
 }
+
 
 resource "azurerm_linux_virtual_machine" "jumpbox" {
   name                = var.jumpbox_name
