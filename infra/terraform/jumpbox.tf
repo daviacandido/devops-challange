@@ -53,7 +53,7 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
   }
 
   custom_data = base64encode(templatefile(
-    "${path.module}/cloud-init/github-runner.yaml.tpl",
+    "${path.module}/cloud-init/jumpbox.yaml",
     {
       ci_repo         = var.ci_repo
       ci_runner_token = var.ci_runner_token
