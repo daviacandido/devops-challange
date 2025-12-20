@@ -2,7 +2,7 @@ name: dns-cloudflare-sync
 
 on:
   workflow_run:
-    workflows: ["k8s-deploy-whoami"]
+    workflows: ["k8s-whoami-deploy"]
     types: [completed]
 
 permissions:
