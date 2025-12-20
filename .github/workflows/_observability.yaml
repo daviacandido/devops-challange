@@ -82,6 +82,11 @@ jobs:
           # mantém o yaml já com o host fixo grafana-bry...
           kubectl apply -f k8s/observability/extra/20-grafana-ingress.yaml
 
+      - name: Allow ingress-nginx to reach Grafana (NetworkPolicy)
+        run: |
+          set -euo pipefail
+          kubectl apply -f k8s/observability/extra/25-grafana-netpol-allow-ingress-nginx.yaml
+
       - name: Wait Grafana
         run: |
           set -euo pipefail
