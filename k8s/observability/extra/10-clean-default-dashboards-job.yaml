@@ -11,7 +11,7 @@ spec:
       serviceAccountName: prometheus-k8s
       containers:
         - name: kubectl
-          image: bitnami/kubectl
+          image: mcr.microsoft.com/oss/kubernetes/kubectl:v1.30.0
           command:
             - sh
             - -lc
