@@ -1,7 +1,14 @@
 name: k8s-deploy
 
+run-name: "APP Deploy — ${{ inputs.comment }} (by @${{ github.actor }})"
+
 on:
   workflow_dispatch:
+    inputs:
+      comment:
+        description: "Deployment comment/reason"
+        required: false
+        default: "K8s app deploy triggered manually via GitHub Actions"
 
 permissions:
   contents: read

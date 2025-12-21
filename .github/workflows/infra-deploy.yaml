@@ -1,5 +1,7 @@
 name: infra-deploy
 
+run-name: "Infra Deploy — ${{ inputs.comment }} (by @${{ github.actor }})"
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,6 +9,10 @@ on:
         description: "Environment folder (ex: aks)"
         required: true
         default: "aks"
+      comment:
+        description: "Deployment comment/reason"
+        required: false
+        default: "Terraform infra deploy triggered manually via GitHub Actions"
 
 permissions:
   contents: read
