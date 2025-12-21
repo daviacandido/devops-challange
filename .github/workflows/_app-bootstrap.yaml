@@ -1,0 +1,163 @@
+name: _app-bootstrap
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k8s-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: [self-hosted, jumpbox]
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }}
+      AKS_NAME: ${{ vars.AKS_NAME }}
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      BOOTSTRAP_DIR: k8s/bootstrap
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fail fast (vars + manifests)
+        run: |
+          set -euo pipefail
+
+          echo "AKS_RESOURCE_GROUP='${AKS_RESOURCE_GROUP}'"
+          echo "AKS_NAME='${AKS_NAME}'"
+          [[ -n "${AKS_RESOURCE_GROUP}" ]] || { echo "::error::AKS_RESOURCE_GROUP vazio"; exit 1; }
+          [[ -n "${AKS_NAME}" ]] || { echo "::error::AKS_NAME vazio"; exit 1; }
+
+          test -d "${BOOTSTRAP_DIR}" || { echo "::error::Diretório ${BOOTSTRAP_DIR} não existe"; exit 1; }
+
+          for f in \
+            00-namespace-whoami.yaml \
+            10-ingress-nginx.yaml \
+            20-metrics-server.yaml \
+            30-cert-manager.yaml \
+            40-clusterissuer-letsencrypt-prod.yaml
+          do
+            test -f "${BOOTSTRAP_DIR}/${f}" || { echo "::error::Manifest não encontrado: ${BOOTSTRAP_DIR}/${f}"; exit 1; }
+          done
+
+      - name: Debug Azure CLI (host)
+        run: |
+          set -euo pipefail
+          command -v az
+          az version
+
+      - name: Azure login (SP)
+        run: |
+          set -euo pipefail
+
+          az login --service-principal \
+            -u "${ARM_CLIENT_ID}" \
+            -p "${ARM_CLIENT_SECRET}" \
+            --tenant "${ARM_TENANT_ID}" >/dev/null
+
+          az account set --subscription "${ARM_SUBSCRIPTION_ID}"
+
+          az account show -o table
+
+      - name: AKS credentials (admin)
+        run: |
+          set -euo pipefail
+
+          rm -f ~/.kube/config || true
+          mkdir -p ~/.kube
+
+          az aks get-credentials \
+            --resource-group "${AKS_RESOURCE_GROUP}" \
+            --name "${AKS_NAME}" \
+            --admin \
+            --overwrite-existing
+
+          kubectl cluster-info
+          kubectl get nodes -o wide
+
+      - name: Apply bootstrap (base components)
+        run: |
+          set -euo pipefail
+
+          kubectl apply -f "${BOOTSTRAP_DIR}/00-namespace-whoami.yaml"
+          kubectl apply -f "${BOOTSTRAP_DIR}/10-ingress-nginx.yaml"
+          kubectl apply -f "${BOOTSTRAP_DIR}/20-metrics-server.yaml"
+          kubectl apply -f "${BOOTSTRAP_DIR}/30-cert-manager.yaml"
+
+      - name: Wait ingress-nginx ready
+        run: |
+          set -euo pipefail
+          kubectl -n ingress-nginx rollout status deploy/ingress-nginx-controller --timeout=10m
+
+      - name: Wait cert-manager CRDs registered
+        run: |
+          set -euo pipefail
+
+          # Se o seu 30-cert-manager.yaml instala cert-manager/CRDs, isso evita corrida do ClusterIssuer.
+          for crd in \
+            clusterissuers.cert-manager.io \
+            issuers.cert-manager.io \
+            certificates.cert-manager.io \
+            certificaterequests.cert-manager.io \
+            orders.acme.cert-manager.io \
+            challenges.acme.cert-manager.io
+          do
+            echo "Waiting for CRD: ${crd}"
+            for i in {1..60}; do
+              kubectl get crd "${crd}" >/dev/null 2>&1 && break
+              sleep 5
+            done
+            kubectl get crd "${crd}" >/dev/null 2>&1 || { echo "::error::CRD não apareceu: ${crd}"; exit 1; }
+          done
+
+      - name: Wait cert-manager controllers ready
+        run: |
+          set -euo pipefail
+
+          # Esses deploys só existem se o cert-manager foi realmente instalado pelo seu manifest
+          kubectl -n cert-manager rollout status deploy/cert-manager --timeout=10m
+          kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=10m
+          kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=10m
+
+      - name: Create/Update Cloudflare API Token secret (cert-manager ns)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          [[ -n "${CLOUDFLARE_API_TOKEN}" ]] || { echo "::error::Missing secret CLOUDFLARE_API_TOKEN"; exit 1; }
+
+          kubectl -n cert-manager create secret generic cloudflare-api-token-secret \
+            --from-literal=api-token="${CLOUDFLARE_API_TOKEN}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl -n cert-manager get secret cloudflare-api-token-secret -o name
+
+      - name: Apply ClusterIssuer (LetsEncrypt prod)
+        run: |
+          set -euo pipefail
+          kubectl apply -f "${BOOTSTRAP_DIR}/40-clusterissuer-letsencrypt-prod.yaml"
+
+      - name: Verify ClusterIssuer
+        run: |
+          set -euo pipefail
+          kubectl get clusterissuer letsencrypt-prod -o wide
+          kubectl describe clusterissuer letsencrypt-prod
+
+      - name: Print ingress service
+        run: |
+          set -euo pipefail
+          kubectl -n ingress-nginx get svc ingress-nginx-controller -o wide

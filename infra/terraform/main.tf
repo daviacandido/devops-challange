@@ -11,10 +11,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   kubernetes_version = var.kubernetes_version
 
-  # ✅ AKS PRIVATE
   private_cluster_enabled = true
 
-  # ✅ mais simples pro desafio (DNS gerenciado pelo AKS)
   private_dns_zone_id = "System"
 
   identity {
@@ -29,7 +27,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
     node_count = var.system_node_count
     type       = "VirtualMachineScaleSets"
 
-    # ✅ coloca o AKS na subnet
     vnet_subnet_id = azurerm_subnet.snet_aks.id
   }
 
@@ -47,6 +44,5 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
   mode                  = "User"
   orchestrator_version  = var.kubernetes_version
 
-  # ✅ user pool também na subnet do AKS
   vnet_subnet_id = azurerm_subnet.snet_aks.id
 }

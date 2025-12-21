@@ -1,0 +1,47 @@
+name: k8s-deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-all
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    uses: ./.github/workflows/_app-bootstrap.yaml
+    secrets: inherit
+
+  observability:
+    needs: [bootstrap]
+    uses: ./.github/workflows/_observability.yaml
+    secrets: inherit
+
+  logging:
+    needs: [observability]
+    uses: ./.github/workflows/_logging.yaml
+    secrets: inherit
+
+  whoami:
+    needs: [logging]
+    uses: ./.github/workflows/_whoami.yaml
+    secrets: inherit
+
+  dns_whoami:
+    needs: [whoami]
+    uses: ./.github/workflows/_dns-cloudflare.yaml
+    with:
+      record_fqdn: ${{ vars.WHOAMI_HOST }} # bry.daviacandido.com.br
+      proxied: true
+    secrets: inherit
+
+  dns_grafana:
+    needs: [observability]
+    uses: ./.github/workflows/_dns-cloudflare.yaml
+    with:
+      record_fqdn: ${{ vars.GRAFANA_HOST }} # grafana-bry.daviacandido.com.br
+      proxied: true
+    secrets: inherit

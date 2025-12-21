@@ -36,7 +36,6 @@ variable "jumpbox_subnet_cidr" { type = string }
 
 variable "bastion_subnet_cidr" { type = string }
 
-# Bastion / Jumpbox
 variable "bastion_name" { type = string }
 
 variable "jumpbox_name" { type = string }
@@ -55,4 +54,15 @@ variable "jumpbox_admin_ssh_public_key" {
     condition     = length(trimspace(var.jumpbox_admin_ssh_public_key)) > 0
     error_message = "jumpbox_admin_ssh_public_key must not be empty. Provide it via TF_VAR_jumpbox_admin_ssh_public_key or tfvars."
   }
+}
+
+variable "ci_repo" {
+  type        = string
+  description = "GitHub repo no formato owner/repo"
+}
+
+variable "ci_runner_token" {
+  type        = string
+  description = "GitHub runner registration token"
+  sensitive   = true
 }

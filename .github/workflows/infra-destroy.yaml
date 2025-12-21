@@ -1,0 +1,72 @@
+name: infra-destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment (ex: aks)"
+        required: true
+        default: "aks"
+      confirm:
+        description: 'Type DESTROY to confirm'
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: infra-destroy
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    if: ${{ inputs.confirm == 'DESTROY' }}
+    runs-on: ubuntu-latest
+    environment: apply
+
+    defaults:
+      run:
+        working-directory: infra/terraform
+        shell: bash
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_CLI_ARGS_init: "-no-color"
+      TF_CLI_ARGS_apply: "-no-color"
+      TF_CLI_ARGS_validate: "-no-color"
+
+      TF_VAR_jumpbox_admin_ssh_public_key: ${{ secrets.JUMPBOX_ADMIN_SSH_PUBLIC_KEY }}
+      TF_VAR_ci_repo: ${{ vars.CI_REPO }}
+      TF_VAR_ci_runner_token: ${{ secrets.CI_RUNNER_TOKEN }}
+
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init -backend-config=envs/${{ inputs.environment }}/backend.hcl
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Destroy
+        run: |
+          set -euo pipefail
+          terraform destroy -auto-approve \
+            -var-file=envs/${{ inputs.environment }}/terraform.tfvars

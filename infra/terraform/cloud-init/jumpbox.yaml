@@ -8,16 +8,102 @@ packages:
   - apt-transport-https
   - gnupg
   - lsb-release
+  - unzip
+  - jq
+  - openssl
+
+write_files:
+  - path: /etc/runner.env
+    permissions: "0600"
+    owner: root:root
+    content: |
+      CI_REPO=${ci_repo}
+      CI_RUNNER_TOKEN=${ci_runner_token}
+
+  - path: /usr/local/bin/setup-gh-runner.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      echo "=== Timezone e NTP ==="
+      timedatectl set-timezone America/Sao_Paulo || true
+      timedatectl set-ntp true || true
+      systemctl enable --now systemd-timesyncd || true
+
+      # shellcheck disable=SC1091
+      source /etc/runner.env
+      ci_repo="$CI_REPO"
+      ci_runner_token="$CI_RUNNER_TOKEN"
+
+      if [[ -z "$ci_repo" || -z "$ci_runner_token" ]]; then
+        echo "CI_REPO ou CI_RUNNER_TOKEN vazios"
+        exit 1
+      fi
+
+      echo "=== Usuário runner ==="
+      id runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
+
+      echo "=== Diretórios do runner ==="
+      mkdir -p /opt/actions-runner/_diag /opt/actions-runner/_work
+      chown -R runner:runner /opt/actions-runner
+
+      echo "=== Download runner (garantindo binários) ==="
+      if [[ ! -x /opt/actions-runner/runsvc.sh ]]; then
+        echo "Runner não encontrado (runsvc.sh ausente). Baixando e extraindo..."
+        su - runner -c 'cd /opt/actions-runner && \
+          rm -f actions-runner-linux-x64-*.tar.gz && \
+          curl -fsSLO https://github.com/actions/runner/releases/download/v2.316.0/actions-runner-linux-x64-2.316.0.tar.gz && \
+          tar xzf actions-runner-linux-x64-2.316.0.tar.gz'
+      fi
+
+      echo "=== Validando extração ==="
+      test -x /opt/actions-runner/runsvc.sh
+      test -x /opt/actions-runner/config.sh
+      test -x /opt/actions-runner/run.sh
+
+      echo "=== Dependências ==="
+      sudo /opt/actions-runner/bin/installdependencies.sh
+
+      echo "=== Configuração do runner ==="
+      if [[ ! -f /opt/actions-runner/.runner ]]; then
+        su - runner -c "cd /opt/actions-runner && \
+          ./config.sh --unattended \
+            --url https://github.com/$ci_repo \
+            --token $ci_runner_token \
+            --name jumpbox-runner \
+            --labels jumpbox \
+            --work _work"
+      fi
+
+      echo "=== Criando service systemd (User=runner) ==="
+      repo_svc="$(echo "$ci_repo" | tr '/' '-')"
+      svc_name="actions.runner.$repo_svc.jumpbox-runner.service"
+
+      cat > "/etc/systemd/system/$svc_name" <<EOF
+      [Unit]
+      Description=GitHub Actions Runner ($ci_repo.jumpbox-runner)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      User=runner
+      Group=runner
+      WorkingDirectory=/opt/actions-runner
+      ExecStart=/opt/actions-runner/bin/runsvc.sh
+      Restart=always
+      RestartSec=5
+      KillMode=process
+      TimeoutStopSec=5min
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+
+      systemctl daemon-reload
+      systemctl enable --now "$svc_name"
+      systemctl status "$svc_name" --no-pager -l || true
 
 runcmd:
-  # Azure CLI
-  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-
-  # kubectl (binary)
-  - curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-  - chmod +x /usr/local/bin/kubectl
-  - kubectl version --client
-
-  # (opcional) bash completion
-  - echo "source <(kubectl completion bash)" >> /home/azureuser/.bashrc
-  - chown azureuser:azureuser /home/azureuser/.bashrc
+  - [ bash, -lc, "/usr/local/bin/setup-gh-runner.sh > /var/log/setup-gh-runner.log 2>&1" ]

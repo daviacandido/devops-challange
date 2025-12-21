@@ -1,0 +1,23 @@
+name: infra-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment folder (ex: aks)"
+        required: true
+        default: "aks"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  infra:
+    uses: ./.github/workflows/_terraform_infra.yaml
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}

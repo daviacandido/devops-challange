@@ -21,13 +21,14 @@ resource "azurerm_network_interface" "jumpbox_nic" {
   }
 }
 
+
 resource "azurerm_linux_virtual_machine" "jumpbox" {
   name                = var.jumpbox_name
-  location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
   size                = var.jumpbox_vm_size
+  admin_username      = var.jumpbox_admin_username
 
-  admin_username = var.jumpbox_admin_username
   network_interface_ids = [
     azurerm_network_interface.jumpbox_nic.id
   ]
@@ -38,10 +39,6 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
     username   = var.jumpbox_admin_username
     public_key = var.jumpbox_admin_ssh_public_key
   }
-
-  custom_data = base64encode(
-    file("${path.module}/cloud-init/jumpbox.yaml")
-  )
 
   os_disk {
     caching              = "ReadWrite"
@@ -54,4 +51,12 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
     sku       = "22_04-lts-gen2"
     version   = "latest"
   }
+
+  custom_data = base64encode(templatefile(
+    "${path.module}/cloud-init/jumpbox.yaml",
+    {
+      ci_repo         = var.ci_repo
+      ci_runner_token = var.ci_runner_token
+    }
+  ))
 }
