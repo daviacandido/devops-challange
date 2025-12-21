@@ -89,7 +89,7 @@ jobs:
       - name: Apply Grafana rbac
         run: |
           set -euo pipefail
-          kubectl apply -f k8s/observability/extra/grafana/14-grafana-rbac.yaml
+          kubectl apply -f k8s/observability/extra/grafana/14-grafana-sidecar-rbac.yaml
 
       - name: Apply Grafana dashboard provider (custom)
         run: |
