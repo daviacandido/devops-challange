@@ -4,7 +4,7 @@ metadata:
   name: grafana-dashboard-whoami-logs
   namespace: monitoring
   labels:
-    grafana_dashboard_custom: "1"
+    grafana_dashboard: "1"
 data:
   whoami-logs.json: |
     {

@@ -1,0 +1,33 @@
+spec:
+  template:
+    spec:
+      securityContext:
+        fsGroup: 65534
+      volumes:
+        - name: custom-dashboards
+          emptyDir: {}
+      containers:
+        - name: grafana
+          volumeMounts:
+            - name: custom-dashboards
+              mountPath: /var/lib/grafana/dashboards
+
+        - name: dashboard-sidecar
+          image: quay.io/kiwigrid/k8s-sidecar:1.27.4
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: METHOD
+              value: "WATCH"
+            - name: LABEL
+              value: "grafana_dashboard"
+            - name: LABEL_VALUE
+              value: "1"
+            - name: FOLDER
+              value: /var/lib/grafana/dashboards
+            - name: RESOURCE
+              value: "configmap"
+            - name: NAMESPACE
+              value: "monitoring"
+          volumeMounts:
+            - name: custom-dashboards
+              mountPath: /var/lib/grafana/dashboards

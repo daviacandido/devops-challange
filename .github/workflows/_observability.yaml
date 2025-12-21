@@ -3,7 +3,6 @@ name: _observability
 on:
   workflow_call:
 
-
 permissions:
   contents: read
 
@@ -57,12 +56,11 @@ jobs:
           kubectl create -f k8s/observability/kube-prometheus/manifests/setup \
             --save-config=false --validate=false || true
 
-          # 2) Espera CRDs registrarem (substitui sleep)
+          # 2) Espera CRDs registrarem
           kubectl wait --for=condition=Established crd --all --timeout=10m
 
-          # 3) Resto: pode usar apply normal
+          # 3) Resto
           kubectl apply -f k8s/observability/kube-prometheus/manifests
-
 
       - name: Configure Grafana admin credentials
         run: |
@@ -74,6 +72,7 @@ jobs:
             --from-literal=GF_SECURITY_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
+          # Garante env vars no deployment
           kubectl -n monitoring set env deploy/grafana --from=secret/grafana-admin
 
       - name: Apply Grafana datasources (Prometheus + Loki)
@@ -86,25 +85,44 @@ jobs:
             --from-file=datasources.yaml=k8s/observability/extra/grafana/datasources.yaml \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Restart Grafana to reload datasources
+      - name: Apply Grafana dashboard provider (custom)
         run: |
+          set -euo pipefail
+          kubectl apply -f k8s/observability/extra/grafana/15-grafana-dashboard-provider-and-sidecar.yaml
+
+      - name: Patch Grafana (sidecar + volumes)
+        run: |
+          set -euo pipefail
+          kubectl patch deployment grafana -n monitoring \
+            --type=merge \
+            --patch-file k8s/observability/extra/grafana/16-grafana-sidecar-patch.yaml
+
+      - name: Restart Grafana to reload provisioning/sidecar
+        run: |
+          set -euo pipefail
           kubectl -n monitoring rollout restart deploy/grafana
           kubectl -n monitoring rollout status deploy/grafana --timeout=10m
 
-      - name: Clean default Grafana dashboards (kube-prometheus)
+      - name: Clean kube-prometheus default dashboards (ConfigMaps)
         run: |
           set -euo pipefail
 
-          kubectl apply -f k8s/observability/extra/10-clean-default-dashboards-job.yaml
-
-          kubectl -n monitoring wait --for=condition=complete job/grafana-clean-default-dashboards --timeout=5m || true
-          kubectl -n monitoring logs job/grafana-clean-default-dashboards || true
+          # Remove somente os defaults do kube-prometheus
+          kubectl -n monitoring get cm -o name \
+            | grep -E '^configmap/grafana-dashboard-' \
+            | xargs -r kubectl -n monitoring delete --ignore-not-found
 
       - name: Apply whoami probe + custom dashboards
         run: |
           set -euo pipefail
           kubectl apply -f k8s/observability/extra/30-whoami-probe.yaml
           kubectl apply -f k8s/observability/dashboards/
+
+      # - name: Restart Grafana (optional) to refresh dashboards list
+      #   run: |
+      #     set -euo pipefail
+      #     kubectl -n monitoring rollout restart deploy/grafana
+      #     kubectl -n monitoring rollout status deploy/grafana --timeout=10m
 
       - name: Apply Grafana Ingress
         run: |
@@ -116,8 +134,10 @@ jobs:
           set -euo pipefail
           kubectl apply -f k8s/observability/extra/25-grafana-netpol-allow-ingress-nginx.yaml
 
-      - name: Wait Grafana
+      - name: Debug (Grafana + dashboards + datasources)
         run: |
           set -euo pipefail
-          kubectl -n monitoring rollout status deploy/grafana --timeout=10m
-          kubectl -n monitoring get pods,svc,ingress -o wide
+          kubectl -n monitoring get pods -l app.kubernetes.io/name=grafana -o wide
+          kubectl -n monitoring exec -it deploy/grafana -- ls -la /etc/grafana/provisioning/dashboards || true
+          kubectl -n monitoring exec -it deploy/grafana -- ls -la /etc/grafana/provisioning/datasources || true
+          kubectl -n monitoring exec -it deploy/grafana -- ls -la /var/lib/grafana/dashboards || true
