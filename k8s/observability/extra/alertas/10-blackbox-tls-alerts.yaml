@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: blackbox-tls-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: blackbox.tls.rules
+      rules:
+        # 1) Certificado expirando em 7 dias (warning)
+        - alert: EndpointTLSExpiringSoon
+          expr: (probe_ssl_earliest_cert_expiry{job="blackbox-exporter"} - time()) < (7 * 24 * 60 * 60)
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "TLS expirando em breve"
+            description: "O certificado do endpoint {{ $labels.instance }} expira em menos de 7 dias."
+
+        # 2) Certificado inválido / erro TLS/HTTP (critical)
+        # probe_success = 0 cobre: handshake TLS falhando, CN inválido, cadeia inválida, timeout, DNS, etc.
+        - alert: EndpointTLSOrHTTPProbeFailing
+          expr: probe_success{job="blackbox-exporter"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Falha no probe (TLS/HTTP)"
+            description: "O probe falhou para {{ $labels.instance }} (job={{ $labels.job }}). Pode ser TLS inválido, cadeia incorreta, hostname mismatch, DNS, rede, timeout ou HTTP down."

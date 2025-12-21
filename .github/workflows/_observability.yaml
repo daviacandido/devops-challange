@@ -124,11 +124,11 @@ jobs:
           kubectl apply -f k8s/observability/extra/30-blackbox-whoami-servicemonitor.yaml
           kubectl apply -f k8s/observability/dashboards/
 
-      # - name: Restart Grafana (optional) to refresh dashboards list
-      #   run: |
-      #     set -euo pipefail
-      #     kubectl -n monitoring rollout restart deploy/grafana
-      #     kubectl -n monitoring rollout status deploy/grafana --timeout=10m
+
+      - name: Apply custom TLS alerts
+        run: |
+          set -euo pipefail
+          kubectl apply -f k8s/observability/extra/alertas/10-blackbox-tls-alerts.yaml
 
       - name: Apply Grafana Ingress
         run: |
