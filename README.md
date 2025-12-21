@@ -1,4 +1,4 @@
-# 📄 Documentação Técnica — Projeto de Infraestrutura e Plataforma Kubernetes (AKS)
+# Projeto de Infraestrutura e Plataforma Kubernetes (AKS)
 
 Este projeto foi desenvolvido como entrega técnica com o objetivo de demonstrar:
 
@@ -8,6 +8,16 @@ Este projeto foi desenvolvido como entrega técnica com o objetivo de demonstrar
 - Conhecimento prático de **Kubernetes gerenciado (AKS)**, **CI/CD** e **DNS**
 
 Todo o ambiente foi construído sem uso de ferramentas gerenciadas externas além da nuvem, priorizando **controle**, **clareza** e **reprodutibilidade**.
+
+---
+
+> ### Observação sobre o ambiente
+>
+> Este ambiente foi construído com foco em **demonstração técnica** e **boas práticas arquiteturais**.
+>
+> Embora utilize padrões próximos aos de produção, alguns parâmetros — como **quantidade de nós**, **limites de escalonamento** e **retenção de logs** — foram ajustados para o **contexto de avaliação técnica**.
+>
+> As decisões adotadas priorizam **clareza**, **segurança**, **reprodutibilidade** e **aderência a boas práticas**, em detrimento de dimensionamentos típicos de ambientes produtivos de larga escala.
 
 ---
 
@@ -133,6 +143,18 @@ O backend é criado antes do restante da infraestrutura, de forma manual, usando
 - Kubernetes recente
 - Container runtime: **containerd**
 - Comunicação privada entre componentes
+
+### Arquitetura do Cluster (Control Plane e Workers)
+
+No Azure Kubernetes Service (AKS), o **control plane (master)** é totalmente **gerenciado pela Azure** e não é exposto como um nó acessível via Kubernetes.
+
+Isso significa que:
+- O cluster possui **1 control plane gerenciado**, responsável por API Server, Scheduler e Controllers
+- Os nós visíveis via `kubectl` correspondem **exclusivamente aos worker nodes**
+
+Neste projeto, o cluster foi provisionado com **2 worker nodes**, distribuídos em node pools, garantindo capacidade mínima para alta disponibilidade e testes de escalabilidade.
+
+Essa arquitetura abstrai a complexidade do control plane, reduz o overhead operacional e segue o modelo recomendado para ambientes gerenciados em produção.
 
 ---
 
@@ -284,6 +306,17 @@ Cada workflow:
 - Pode ser executado isoladamente
 - Usa variáveis e secrets corretamente segregados
 
+### Estratégia de separação de workflows
+
+Os workflows foram separados por responsabilidade para garantir:
+
+- Melhor isolamento de falhas
+- Execução independente de etapas
+- Facilidade de troubleshooting
+- Reexecução pontual sem impacto no fluxo completo
+
+Essa abordagem evita pipelines monolíticos e segue boas práticas de CI/CD para ambientes Kubernetes.
+
 ---
 
 ## 11. Ingress Controller
@@ -379,7 +412,75 @@ Configurações foram ajustadas para:
 
 ---
 
-## 16. Segurança
+## 16. Disponibilidade e Escalabilidade (Kubernetes)
+
+Além da infraestrutura e automação, o projeto também implementa mecanismos nativos do Kubernetes para garantir **alta disponibilidade** e **escalabilidade automática** das aplicações.
+
+
+### Pod Disruption Budget (PDB)
+
+Foi configurado **Pod Disruption Budget (PDB)** para garantir que a aplicação permaneça disponível durante eventos de interrupção controlada, como:
+
+- Atualizações de nós
+- Reinícios planejados
+- Manutenções no cluster
+
+O PDB define o número mínimo de pods que devem permanecer disponíveis, evitando indisponibilidade causada por remoções simultâneas.
+
+Essa configuração demonstra preocupação com **resiliência da aplicação**, mesmo em ambientes de pequeno porte.
+
+### Horizontal Pod Autoscaler (HPA)
+
+Foi configurado **Horizontal Pod Autoscaler (HPA)** para permitir o **escalonamento automático da aplicação**, baseado em métricas de uso.
+
+Características da configuração:
+
+- Escalonamento automático de pods
+- Baseado em métricas de CPU (e/ou memória)
+- Limites mínimo e máximo definidos
+- Integrado ao metrics-server do cluster
+
+O uso de HPA permite que a aplicação:
+- Escale automaticamente sob carga
+- Utilize recursos de forma eficiente
+- Mantenha estabilidade sem intervenção manual
+
+### Benefícios da abordagem
+
+A combinação de **HPA + PDB** garante que o ambiente:
+
+- Escale sob demanda
+- Mantenha disponibilidade durante interrupções
+- Utilize recursos de forma eficiente
+- Esteja alinhado com boas práticas de Kubernetes para ambientes produtivos
+
+### Metrics Server (Fonte de Métricas do Cluster)
+
+Embora o Azure Kubernetes Service (AKS) disponibilize o metrics-server por padrão em clusters gerenciados, neste projeto foi realizado o **deploy explícito do metrics-server**, garantindo controle total sobre sua configuração e comportamento.
+
+O metrics-server foi implantado no namespace `kube-system`, com:
+
+- ServiceAccount dedicado
+- RBAC explícito (ClusterRoles e ClusterRoleBindings)
+- APIService registrada (`metrics.k8s.io`)
+- Deployment próprio
+- Configuração de segurança restritiva (securityContext, non-root, filesystem read-only)
+- Resolução de métricas ajustada para 15 segundos
+
+Essa abordagem garante que as métricas de CPU e memória estejam sempre disponíveis para o **Horizontal Pod Autoscaler (HPA)**, independentemente de variações de comportamento entre clusters gerenciados, versões do AKS ou diferenças entre provedores de nuvem.
+
+### Observação sobre comportamento específico do AKS
+
+Em clusters AKS, o metrics-server normalmente já está habilitado como parte do serviço gerenciado.
+No entanto, a instalação explícita adotada neste projeto garante:
+
+- Comportamento previsível e auditável
+- Independência de configurações implícitas do provedor
+- Portabilidade da solução para outros ambientes Kubernetes (EKS, GKE ou self-managed)
+
+---
+
+## 17. Segurança
 
 Medidas adotadas:
 
@@ -390,18 +491,76 @@ Medidas adotadas:
 - TLS em todos os serviços expostos
 - Nenhum endpoint aberto sem necessidade
 
+### Network Policies
+
+Foram aplicadas NetworkPolicies para restringir a comunicação entre namespaces e pods, seguindo o princípio de menor privilégio.
+
+Objetivos da abordagem:
+- Evitar comunicação lateral desnecessária
+- Restringir acesso apenas aos serviços autorizados
+- Reduzir impacto de possíveis comprometimentos
+
+As políticas foram aplicadas de forma incremental, garantindo funcionamento correto dos serviços essenciais antes de restrições adicionais.
+
 ---
 
-## 17. Resultado Final
+## 18. Endpoints de Acesso
 
-O projeto entrega:
+Após a conclusão do provisionamento da infraestrutura, configuração de Ingress, DNS e certificados TLS, os seguintes endpoints públicos ficaram disponíveis:
 
-- Infraestrutura completa em Azure via Terraform
-- Cluster Kubernetes funcional
-- CI/CD automatizado
-- Observabilidade operacional
-- Logging funcional
-- DNS e TLS automatizados
-- Arquitetura clara, reproduzível e auditável
+### Aplicação
+
+- https://bry.daviacandido.com.br
+
+Endpoint principal da aplicação exposta no cluster Kubernetes.
+
+Características:
+- Exposição via Ingress Controller (ingress-nginx)
+- DNS gerenciado pelo Cloudflare
+- Tráfego HTTPS com TLS automático via cert-manager
+- Certificado emitido pelo Let’s Encrypt
+- Registro DNS configurado como proxied (orange cloud), garantindo mascaramento do IP de origem
+
+---
+
+### Observabilidade — Grafana
+
+- https://grafana.daviacandido.com.br
+
+Endpoint dedicado à visualização de métricas e logs do cluster.
+
+Características:
+- Exposição via Ingress
+- Autenticação configurada via Secret
+- Integração com Prometheus (métricas)
+- Integração com Loki (logs)
+- DNS gerenciado pelo Cloudflare
+- HTTPS com certificado TLS automático
+
+---
+
+### Observação sobre o ambiente
+
+Este ambiente foi construído com foco em demonstração técnica e boas práticas arquiteturais.
+
+Embora utilize padrões próximos aos de produção, alguns parâmetros (como quantidade de nós, limites de escalonamento e retenção de logs) foram ajustados para o contexto de avaliação técnica.
+
+
+## 19. Resultado Final
+
+
+### O projeto entrega
+
+- Infraestrutura provisionada via Terraform na Azure
+- AKS como orquestrador de containers
+- Bastion como ponto de acesso administrativo
+- Jumpbox como executor de pipelines e operações
+- Ingress-nginx como camada de entrada
+- cert-manager para gestão de TLS
+- Cloudflare para DNS, proxy e proteção
+- Prometheus e Grafana para observabilidade
+- Loki e Promtail para logging
+- HPA e PDB garantindo escalabilidade e disponibilidade
+
 
 Tudo foi desenvolvido com foco em clareza técnica, decisões conscientes e aderência a boas práticas.
