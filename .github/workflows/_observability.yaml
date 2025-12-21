@@ -60,7 +60,13 @@ jobs:
           kubectl wait --for=condition=Established crd --all --timeout=10m
 
           # 3) Resto
-          kubectl apply -f k8s/observability/kube-prometheus/manifests
+          DIR="k8s/observability/kube-prometheus/manifests"
+
+          find "$DIR" -maxdepth 1 -type f -name '*.yaml' \
+            ! -name 'grafana-dashboardDatasources.yaml' \
+            ! -name 'grafana-dashboardDefinitions.yaml' \
+            ! -name 'grafana-dashboardSources.yaml' \
+            -print | sort | xargs -r kubectl apply -f
 
       - name: Configure Grafana admin credentials
         run: |
