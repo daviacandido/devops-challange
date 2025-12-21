@@ -121,7 +121,7 @@ jobs:
       - name: Apply whoami probe + custom dashboards
         run: |
           set -euo pipefail
-          kubectl apply -f k8s/observability/extra/30-whoami-probe.yaml
+          kubectl apply -f k8s/observability/extra/30-blackbox-whoami-servicemonitor.yaml
           kubectl apply -f k8s/observability/dashboards/
 
       # - name: Restart Grafana (optional) to refresh dashboards list

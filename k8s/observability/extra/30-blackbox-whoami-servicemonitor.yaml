@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: blackbox-whoami
+  namespace: monitoring
+  labels:
+    prometheus: k8s
+spec:
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: blackbox-exporter
+  endpoints:
+    - interval: 30s
+      path: /probe
+      targetPort: 19115
+      params:
+        module:
+          - http_2xx
+      relabelings:
+        - targetLabel: __param_target
+          replacement: https://bry.daviacandido.com.br
+        - sourceLabels: [__param_target]
+          targetLabel: instance
