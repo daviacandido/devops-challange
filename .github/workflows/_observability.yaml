@@ -75,14 +75,18 @@ jobs:
 
           kubectl -n monitoring set env deploy/grafana --from=secret/grafana-admin
 
-      - name: Provision Grafana datasources (Alertmanager + Loki)
+      - name: Apply Grafana datasources (Prometheus + Loki)
         run: |
           set -euo pipefail
 
+          kubectl -n monitoring delete secret grafana-datasources --ignore-not-found
+
           kubectl -n monitoring create secret generic grafana-datasources \
-            --from-file=k8s/observability/extra/grafana/datasources \
+            --from-file=datasources.yaml=k8s/observability/extra/grafana/datasources.yaml \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Restart Grafana to reload datasources
+        run: |
           kubectl -n monitoring rollout restart deploy/grafana
           kubectl -n monitoring rollout status deploy/grafana --timeout=10m
 
