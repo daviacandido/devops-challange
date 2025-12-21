@@ -5,20 +5,20 @@ metadata:
   namespace: monitoring
 spec:
   ttlSecondsAfterFinished: 300
-  backoffLimit: 2
+  backoffLimit: 1
   template:
     spec:
       restartPolicy: Never
-      serviceAccountName: prometheus-k8s
+      serviceAccountName: grafana-cleaner
       containers:
         - name: kubectl
-          image: mcr.microsoft.com/oss/kubernetes/kubectl:v1.30.0
-          command: ["kubectl"]
+          image: bitnami/kubectl:latest
+          command: ["/bin/sh", "-lc"]
           args:
-            - "-n"
-            - "monitoring"
-            - "delete"
-            - "configmap"
-            - "-l"
-            - "grafana_dashboard=1"
-            - "--ignore-not-found"
+            - |
+              set -euo pipefail
+              echo "Deleting kube-prometheus default Grafana dashboard ConfigMaps..."
+              kubectl -n monitoring delete configmap \
+                -l app.kubernetes.io/part-of=kube-prometheus,app.kubernetes.io/component=grafana \
+                --ignore-not-found
+              echo "Done."
