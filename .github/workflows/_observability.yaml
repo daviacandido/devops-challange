@@ -62,11 +62,20 @@ jobs:
           # 3) Resto
           DIR="k8s/observability/kube-prometheus/manifests"
 
-          find "$DIR" -maxdepth 1 -type f -name '*.yaml' \
-            ! -name 'grafana-dashboardDatasources.yaml' \
-            ! -name 'grafana-dashboardDefinitions.yaml' \
-            ! -name 'grafana-dashboardSources.yaml' \
-            -print | sort | xargs -r kubectl apply -f
+          find "$DIR" -maxdepth 1 -type f -name '*.yaml' -print0 \
+          | sort -z \
+          | while IFS= read -r -d '' file; do
+              base="$(basename "$file")"
+
+              case "$base" in
+                grafana-dashboardDatasources.yaml|grafana-dashboardDefinitions.yaml|grafana-dashboardSources.yaml)
+                  echo "SKIP: $file"
+                  continue
+                  ;;
+              esac
+
+              kubectl apply -f "$file"
+            done
 
       - name: Configure Grafana admin credentials
         run: |
