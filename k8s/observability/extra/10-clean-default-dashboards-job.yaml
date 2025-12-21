@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grafana-clean-default-dashboards
+  namespace: monitoring
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: prometheus-k8s
+      containers:
+        - name: kubectl
+          image: bitnami/kubectl:1.30
+          command:
+            - sh
+            - -lc
+            - |
+              set -euo pipefail
+              echo "Deleting kube-prometheus default Grafana dashboards..."
+              kubectl -n monitoring delete configmap \
+                -l grafana_dashboard=1 \
+                --ignore-not-found

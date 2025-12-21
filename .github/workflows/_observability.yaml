@@ -63,6 +63,7 @@ jobs:
           # 3) Resto: pode usar apply normal
           kubectl apply -f k8s/observability/kube-prometheus/manifests
 
+
       - name: Configure Grafana admin credentials
         run: |
           set -euo pipefail
@@ -89,6 +90,21 @@ jobs:
         run: |
           kubectl -n monitoring rollout restart deploy/grafana
           kubectl -n monitoring rollout status deploy/grafana --timeout=10m
+
+      - name: Clean default Grafana dashboards (kube-prometheus)
+        run: |
+          set -euo pipefail
+
+          kubectl apply -f k8s/observability/extra/10-clean-default-dashboards-job.yaml
+
+          kubectl -n monitoring wait --for=condition=complete job/grafana-clean-default-dashboards --timeout=5m || true
+          kubectl -n monitoring logs job/grafana-clean-default-dashboards || true
+
+      - name: Apply whoami probe + custom dashboards
+        run: |
+          set -euo pipefail
+          kubectl apply -f k8s/observability/extra/30-whoami-probe.yaml
+          kubectl apply -f k8s/observability/dashboards/
 
       - name: Apply Grafana Ingress
         run: |

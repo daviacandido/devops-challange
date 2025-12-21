@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: whoami-cert-and-http
+  namespace: monitoring
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+    path: /probe
+  targets:
+    staticConfig:
+      static:
+        - https://bry.daviacandido.com.br
