@@ -5,6 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   ttlSecondsAfterFinished: 300
+  backoffLimit: 2
   template:
     spec:
       restartPolicy: Never
@@ -12,12 +13,12 @@ spec:
       containers:
         - name: kubectl
           image: mcr.microsoft.com/oss/kubernetes/kubectl:v1.30.0
-          command:
-            - sh
-            - -lc
-            - |
-              set -euo pipefail
-              echo "Deleting kube-prometheus default Grafana dashboards..."
-              kubectl -n monitoring delete configmap \
-                -l grafana_dashboard=1 \
-                --ignore-not-found
+          command: ["kubectl"]
+          args:
+            - "-n"
+            - "monitoring"
+            - "delete"
+            - "configmap"
+            - "-l"
+            - "grafana_dashboard=1"
+            - "--ignore-not-found"
