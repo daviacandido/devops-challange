@@ -42,75 +42,85 @@ data:
         ]
       },
       "panels": [
-      {
-        "type": "table",
-        "title": "Status do Certificado - WhoAmI",
-        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "probe_success{instance=\"https://bry.daviacandido.com.br\"}",
-            "instant": true
-          },
-          {
-            "refId": "B",
-            "expr": "floor((probe_ssl_earliest_cert_expiry{instance=\"https://bry.daviacandido.com.br\"} - time()) / 86400)",
-            "instant": true
-          }
-        ],
-        "transformations": [
-          {
-            "id": "reduce",
-            "options": {
-              "mode": "seriesToRows",
-              "reducers": ["last"]
+        {
+          "type": "table",
+          "title": "Status do Certificado - WhoAmI",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "probe_success{instance=\"https://bry.daviacandido.com.br\"}",
+              "instant": true
+            },
+            {
+              "refId": "B",
+              "expr": "floor((probe_ssl_earliest_cert_expiry{instance=\"https://bry.daviacandido.com.br\"} - time()) / 86400)",
+              "instant": true
             }
-          },
-          {
-            "id": "organize",
-            "options": {
-              "excludeByName": {
-                "container": true,
-                "endpoint": true,
-                "job": true,
-                "namespace": true,
-                "pod": true,
-                "service": true,
-                "Time": true
-              },
-              "renameByName": {
-                "instance": "DNS",
-                "Value #A": "Status",
-                "Value #B": "Dias restantes"
-              },
-              "indexByName": {
-                "DNS": 0,
-                "Status": 1,
-                "Dias restantes": 2
+          ],
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": {
+                "mode": "columns"
+              }
+            },
+            {
+              "id": "joinByField",
+              "options": {
+                "byField": "instance"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "renameByName": {
+                  "instance": "DNS",
+                  "Value #A": "Status",
+                  "Value #B": "Dias restantes"
+                },
+                "excludeByName": {
+                  "__name__": true,
+                  "container": true,
+                  "endpoint": true,
+                  "job": true,
+                  "namespace": true,
+                  "pod": true,
+                  "service": true
+                },
+                "indexByName": {
+                  "DNS": 0,
+                  "Status": 1,
+                  "Dias restantes": 2
+                }
               }
             }
-          }
-        ],
-        "options": {
-          "showHeader": true,
-          "cellDisplayMode": "color-text",
-          "columns": [
-            {
-              "text": "Status",
-              "custom": {
-                "displayMode": "color-text",
-                "mappings": [
+          ],
+          "options": {
+            "showHeader": true,
+            "cellDisplayMode": "color-text"
+          },
+          "fieldConfig": {
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Status" },
+                "properties": [
                   {
-                    "type": "value",
-                    "options": {
-                      "1": { "text": "OK", "color": "green" },
-                      "0": { "text": "NOK", "color": "red" }
-                    }
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "1": { "text": "OK", "color": "green" },
+                          "0": { "text": "NOK", "color": "red" }
+                        }
+                      }
+                    ]
                   }
                 ]
               }
-            }
-          ]
+            ]
+          }
         },
         {
           "type": "timeseries",
