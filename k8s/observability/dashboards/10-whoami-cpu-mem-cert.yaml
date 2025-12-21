@@ -15,59 +15,98 @@ data:
       "refresh": "30s",
       "timezone": "browser",
       "tags": ["whoami", "kubernetes"],
-      "templating": {
-        "list": [
-          {
-            "name": "pod",
-            "type": "query",
-            "datasource": {
-              "type": "prometheus",
-              "uid": "prometheus"
-            },
-            "query": {
-              "query": "label_values(kube_pod_info{namespace=\"whoami\"}, pod)",
-              "refId": "StandardVariableQuery"
-            },
-            "definition": "label_values(kube_pod_info{namespace=\"whoami\"}, pod)",
-            "refresh": 2,
-            "multi": true,
-            "includeAll": true,
-            "allValue": ".*",
-            "current": {
-              "selected": false,
-              "text": "All",
-              "value": ".*"
-            }
-          }
-        ]
-      },
       "panels": [
         {
-          "type": "stat",
-          "title": "WhoAmI URL - Probe Success",
-          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+          "type": "table",
+          "title": "Status do Certificado - WhoAmI",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
           "targets": [
             {
-              "expr": "probe_success{instance=\"https://bry.daviacandido.com.br\"}",
-              "refId": "A"
-            }
-          ]
-        },
-        {
-          "type": "stat",
-          "title": "Certificate Expiry (days)",
-          "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
-          "targets": [
+              "refId": "A",
+              "expr": "probe_success{instance=\"https://bry.daviacandido.com.br\"}"
+            },
             {
-              "expr": "(probe_ssl_earliest_cert_expiry{instance=\"https://bry.daviacandido.com.br\"} - time()) / 86400",
-              "refId": "A"
+              "refId": "B",
+              "expr": "(probe_ssl_earliest_cert_expiry{instance=\"https://bry.daviacandido.com.br\"} - time()) / 86400"
             }
-          ]
+          ],
+          "transformations": [
+            {
+              "id": "joinByField",
+              "options": {
+                "byField": "instance"
+              }
+            }
+          ],
+          "options": {
+            "showHeader": true,
+            "sortBy": [],
+            "cellDisplayMode": "color-text",
+            "columns": [
+              { "text": "instance", "title": "DNS" },
+              {
+                "text": "Value #A",
+                "title": "Live",
+                "custom": {
+                  "displayMode": "color-text",
+                  "mappings": [
+                    {
+                      "options": {
+                        "match": "1",
+                        "result": { "text": "OK ✅", "color": "green" }
+                      },
+                      "type": "value"
+                    },
+                    {
+                      "options": {
+                        "match": "0",
+                        "result": { "text": "FAIL ❌", "color": "red" }
+                      },
+                      "type": "value"
+                    }
+                  ]
+                }
+              },
+              {
+                "text": "Value #B",
+                "title": "Dias Restantes",
+                "custom": {
+                  "displayMode": "color-text",
+                  "mappings": [
+                    {
+                      "options": {
+                        "from": 0,
+                        "to": 5,
+                        "result": { "color": "red" }
+                      },
+                      "type": "range"
+                    },
+                    {
+                      "options": {
+                        "from": 5,
+                        "to": 15,
+                        "result": { "color": "orange" }
+                      },
+                      "type": "range"
+                    },
+                    {
+                      "options": {
+                        "from": 15,
+                        "to": 9999,
+                        "result": { "color": "green" }
+                      },
+                      "type": "range"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         },
         {
           "type": "timeseries",
           "title": "CPU Usage (cores) - WhoAmI Pods",
-          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
           "targets": [
             {
               "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"whoami\",pod=~\"$pod\",container!=\"POD\",image!=\"\"}[5m])) by (pod)",
@@ -79,12 +118,29 @@ data:
         {
           "type": "timeseries",
           "title": "Memory Usage (MiB) - WhoAmI Pods",
-          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
           "targets": [
             {
               "expr": "sum(container_memory_working_set_bytes{namespace=\"whoami\",pod=~\"$pod\",container!=\"POD\",image!=\"\"}) by (pod) / 1024 / 1024",
               "legendFormat": "{{pod}}",
               "refId": "A"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Network (Rx/Tx) - WhoAmI Pods",
+          "gridPos": { "x": 0, "y": 14, "w": 24, "h": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"whoami\",pod=~\"$pod\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}} rx",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"whoami\",pod=~\"$pod\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}} tx",
+              "refId": "B"
             }
           ]
         }
