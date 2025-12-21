@@ -75,11 +75,20 @@ jobs:
 
           kubectl -n monitoring set env deploy/grafana --from=secret/grafana-admin
 
+      - name: Provision Grafana datasources (Alertmanager + Loki)
+        run: |
+          set -euo pipefail
+
+          kubectl -n monitoring create secret generic grafana-datasources \
+            --from-file=k8s/observability/extra/grafana/datasources \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl -n monitoring rollout restart deploy/grafana
+          kubectl -n monitoring rollout status deploy/grafana --timeout=10m
+
       - name: Apply Grafana Ingress
         run: |
           set -euo pipefail
-          # se você quiser parametrizar host no yaml, dá pra usar envsubst. Por ora,
-          # mantém o yaml já com o host fixo grafana-bry...
           kubectl apply -f k8s/observability/extra/20-grafana-ingress.yaml
 
       - name: Allow ingress-nginx to reach Grafana (NetworkPolicy)

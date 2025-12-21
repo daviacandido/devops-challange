@@ -56,7 +56,6 @@ jobs:
           kubectl apply -f k8s/logging/00-namespace.yaml
           kubectl apply -f k8s/logging/10-loki.yaml
           kubectl apply -f k8s/logging/20-promtail.yaml
-          kubectl apply -f k8s/logging/30-grafana-datasource-loki.yaml
 
       - name: Wait logging components
         run: |
