@@ -44,20 +44,28 @@ data:
       "panels": [
         {
           "type": "table",
-          "title": "DNS - Live - Validade",
+          "title": "Status do Certificado - WhoAmI",
           "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "targets": [
             {
               "refId": "A",
-              "expr": "max_over_time(probe_success{instance=\"https://bry.daviacandido.com.br\"}[5m])"
+              "expr": "probe_success{instance=\"https://bry.daviacandido.com.br\"}",
+              "instant": true
             },
             {
               "refId": "B",
-              "expr": "(max_over_time(probe_ssl_earliest_cert_expiry{instance=\"https://bry.daviacandido.com.br\"}[5m]) - time()) / 86400"
+              "expr": "(probe_ssl_earliest_cert_expiry{instance=\"https://bry.daviacandido.com.br\"} - time()) / 86400",
+              "instant": true
             }
           ],
           "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "mode": "seriesToRows",
+                "reducers": ["last"]
+              }
+            },
             {
               "id": "joinByField",
               "options": {
@@ -67,10 +75,12 @@ data:
           ],
           "options": {
             "showHeader": true,
-            "sortBy": [],
             "cellDisplayMode": "color-text",
             "columns": [
-              { "text": "instance", "title": "DNS" },
+              {
+                "text": "instance",
+                "title": "DNS"
+              },
               {
                 "text": "Value #A",
                 "title": "Live",
@@ -78,31 +88,45 @@ data:
                   "displayMode": "color-text",
                   "mappings": [
                     {
+                      "type": "value",
                       "options": {
-                        "match": "1",
-                        "result": { "text": "OK ✅", "color": "green" }
-                      },
-                      "type": "value"
-                    },
-                    {
-                      "options": {
-                        "match": "0",
-                        "result": { "text": "NOK ❌", "color": "red" }
-                      },
-                      "type": "value"
+                        "1": { "text": "OK ✅", "color": "green" },
+                        "0": { "text": "FAIL ❌", "color": "red" }
+                      }
                     }
                   ]
                 }
               },
               {
                 "text": "Value #B",
-                "title": "Dias",
+                "title": "Dias Restantes",
                 "custom": {
                   "displayMode": "color-text",
                   "mappings": [
-                    { "type": "range", "options": { "from": 0, "to": 5, "result": { "color": "red" } } },
-                    { "type": "range", "options": { "from": 5, "to": 15, "result": { "color": "orange" } } },
-                    { "type": "range", "options": { "from": 15, "to": 9999, "result": { "color": "green" } } }
+                    {
+                      "type": "range",
+                      "options": {
+                        "from": 0,
+                        "to": 5,
+                        "result": { "color": "red" }
+                      }
+                    },
+                    {
+                      "type": "range",
+                      "options": {
+                        "from": 5,
+                        "to": 15,
+                        "result": { "color": "orange" }
+                      }
+                    },
+                    {
+                      "type": "range",
+                      "options": {
+                        "from": 15,
+                        "to": 9999,
+                        "result": { "color": "green" }
+                      }
+                    }
                   ]
                 }
               }

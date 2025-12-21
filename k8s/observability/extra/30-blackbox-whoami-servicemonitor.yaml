@@ -22,5 +22,9 @@ spec:
       relabelings:
         - targetLabel: __param_target
           replacement: https://bry.daviacandido.com.br
+
         - sourceLabels: [__param_target]
           targetLabel: instance
+
+        - targetLabel: __address__
+          replacement: blackbox-exporter.monitoring.svc.cluster.local:19115
