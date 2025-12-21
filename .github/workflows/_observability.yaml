@@ -94,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           kubectl patch deployment grafana -n monitoring \
-            --type=merge \
+            --type=strategic \
             --patch-file k8s/observability/extra/grafana/16-grafana-sidecar-patch.yaml
 
       - name: Restart Grafana to reload provisioning/sidecar
