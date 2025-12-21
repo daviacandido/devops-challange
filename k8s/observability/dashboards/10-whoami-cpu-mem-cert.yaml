@@ -80,6 +80,9 @@ data:
                   "Value #B": "Dias restantes"
                 },
                 "excludeByName": {
+                  "Time 1": true,
+                  "Time 2": true,
+                  "Time": true,
                   "__name__": true,
                   "container": true,
                   "endpoint": true,
@@ -98,7 +101,6 @@ data:
           ],
           "options": {
             "showHeader": true,
-            "cellDisplayMode": "color-text"
           },
           "fieldConfig": {
             "overrides": [
@@ -116,6 +118,11 @@ data:
                         }
                       }
                     ]
+                  },
+                  {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "color-background"
                   }
                 ]
               }
