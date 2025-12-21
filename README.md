@@ -284,7 +284,7 @@ A VM é configurada integralmente via **cloud-init**, sem intervenção manual.
 
 ## 10. CI/CD — GitHub Actions com Runner Self-Hosted
 
-### Por que self-hosted runner?
+### Por que self-hosted runner (para deploy da APP)?
 
 - Acesso direto à rede privada do AKS
 - Menor latência
@@ -305,6 +305,25 @@ Cada workflow:
 - É idempotente
 - Pode ser executado isoladamente
 - Usa variáveis e secrets corretamente segregados
+
+
+### Controles de execução e segurança (Apply/Destroy)
+
+Para evitar mudanças acidentais e garantir rastreabilidade, os pipelines de **Terraform Apply** e **Terraform Destroy** foram desenhados com controles explícitos por ambiente:
+
+- **Execução manual por ambiente**: Apply e Destroy só rodam mediante acionamento manual (workflow_dispatch) com seleção do ambiente.
+- **Confirmação adicional para Destroy**: além do acionamento manual, o Destroy exige uma **confirmação escrita** (ex.: digitar `DESTROY`) antes de prosseguir.
+
+Esses controles reduzem risco operacional, evitam execução involuntária e reforçam o caráter auditável da entrega.
+
+### Comentários automáticos no Pull Request (visibilidade do plano)
+
+O CI inclui um mecanismo de **comentário automático no Pull Request** com o resultado do Terraform (ex.: plan e validações). Isso é especialmente útil quando:
+
+- a branch `main` está **protegida** (merge apenas via PR),
+- é necessário dar **visibilidade** do impacto da mudança antes do merge,
+- e manter o fluxo **auditável** dentro do próprio PR (review + evidências).
+
 
 ### Estratégia de separação de workflows
 
