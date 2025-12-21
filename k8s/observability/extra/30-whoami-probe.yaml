@@ -3,12 +3,13 @@ kind: Probe
 metadata:
   name: whoami-cert-and-http
   namespace: monitoring
+  labels:
+    prometheus: k8s
 spec:
   interval: 30s
   module: http_2xx
   prober:
-    url: blackbox-exporter.monitoring.svc.cluster.local:9115
-    path: /probe
+    url: http://blackbox-exporter.monitoring.svc:9115
   targets:
     staticConfig:
       static:
