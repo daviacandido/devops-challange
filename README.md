@@ -50,10 +50,10 @@ Foi adotado o conceito de Infraestrutura como Código (IaC) para garantir:
 
 **O que não foi utilizado (intencionalmente):**
 
-- ❌ **ARM Templates / Bicep**
+- **ARM Templates / Bicep**
   → menos portáveis, mais verbosos
 
-- ❌ **Provisionamento manual**
+- **Provisionamento manual**
   → não auditável, não idempotente
 
 ---
