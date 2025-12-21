@@ -1,6 +1,7 @@
 spec:
   template:
     spec:
+      automountServiceAccountToken: true
       securityContext:
         fsGroup: 65534
       volumes:
