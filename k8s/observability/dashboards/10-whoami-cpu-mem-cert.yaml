@@ -68,13 +68,6 @@ data:
               "options": { "byField": "instance" }
             },
             {
-              "id": "filterFieldsByName",
-              "options": {
-                "mode": "exclude",
-                "names": ["Time", "Time 1", "Time 2"]
-              }
-            },
-            {
               "id": "organize",
               "options": {
                 "renameByName": {
@@ -83,6 +76,9 @@ data:
                   "Value": "Dias restantes"
                 },
                 "excludeByName": {
+                  "Time": true,
+                  "Time 1": true,
+                  "Time 2": true,
                   "__name__": true,
                   "container": true,
                   "endpoint": true,
