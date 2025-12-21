@@ -61,14 +61,17 @@ data:
           "transformations": [
             {
               "id": "labelsToFields",
-              "options": {
-                "mode": "columns"
-              }
+              "options": { "mode": "columns" }
             },
             {
               "id": "joinByField",
+              "options": { "byField": "instance" }
+            },
+            {
+              "id": "filterFieldsByName",
               "options": {
-                "byField": "instance"
+                "mode": "exclude",
+                "names": ["Time", "Time 1", "Time 2"]
               }
             },
             {
@@ -76,13 +79,10 @@ data:
               "options": {
                 "renameByName": {
                   "instance": "DNS",
-                  "Value #A": "Status",
-                  "Value #B": "Dias restantes"
+                  "probe_success": "Status",
+                  "Value": "Dias restantes"
                 },
                 "excludeByName": {
-                  "Time 1": true,
-                  "Time 2": true,
-                  "Time": true,
                   "__name__": true,
                   "container": true,
                   "endpoint": true,
@@ -100,9 +100,12 @@ data:
             }
           ],
           "options": {
-            "showHeader": true,
+            "showHeader": true
           },
           "fieldConfig": {
+            "defaults": {
+              "decimals": 0
+            },
             "overrides": [
               {
                 "matcher": { "id": "byName", "options": "Status" },
@@ -120,9 +123,8 @@ data:
                     ]
                   },
                   {
-                  "id": "custom.cellOptions",
-                  "value": {
-                    "type": "color-background"
+                    "id": "custom.cellOptions",
+                    "value": { "type": "color-background" }
                   }
                 ]
               }
