@@ -35,7 +35,6 @@ data:
           - source_labels: [__tmp_container_log]
             target_label: __path__
             replacement: /var/log/containers/*$1*.log
-
 ---
 apiVersion: apps/v1
 kind: DaemonSet
