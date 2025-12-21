@@ -30,8 +30,12 @@ spec:
       app.kubernetes.io/version: 2.54.1
   podMonitorNamespaceSelector: {}
   podMonitorSelector: {}
-  probeNamespaceSelector: {}
-  probeSelector: {}
+  probeNamespaceSelector:
+    matchNames:
+      - monitoring
+  probeSelector:
+    matchLabels:
+      prometheus: k8s
   replicas: 2
   resources:
     requests:
