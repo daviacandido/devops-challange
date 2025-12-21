@@ -19,6 +19,7 @@ data:
       - job_name: kubernetes-pods
         kubernetes_sd_configs:
           - role: pod
+
         relabel_configs:
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
@@ -28,13 +29,16 @@ data:
             target_label: container
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
+
           - source_labels: [__meta_kubernetes_pod_name, __meta_kubernetes_namespace, __meta_kubernetes_pod_container_name]
             separator: _
             target_label: __tmp_container_log
             replacement: $1_$2_$3
+
           - source_labels: [__tmp_container_log]
             target_label: __path__
             replacement: /var/log/containers/*$1*.log
+
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -56,6 +60,16 @@ spec:
           image: grafana/promtail:3.6.3
           args:
             - -config.file=/etc/promtail/promtail.yaml
+            - -config.expand-env=true
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           volumeMounts:
             - name: config
               mountPath: /etc/promtail
