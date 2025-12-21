@@ -42,6 +42,37 @@ write_files:
         exit 1
       fi
 
+      echo "=== Instalando Azure CLI (az) ==="
+      if ! command -v az >/dev/null 2>&1; then
+        apt-get update -y
+
+        curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+          | gpg --dearmor \
+          | tee /usr/share/keyrings/microsoft.gpg > /dev/null
+
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" \
+          > /etc/apt/sources.list.d/azure-cli.list
+
+        apt-get update -y
+        apt-get install -y azure-cli
+      else
+        echo "Azure CLI já instalado"
+      fi
+
+      az --version || true
+
+      echo "=== Instalando kubectl ==="
+      if ! command -v kubectl >/dev/null 2>&1; then
+        KUBECTL_VERSION="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+        curl -fsSLo /usr/local/bin/kubectl \
+          "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+        chmod +x /usr/local/bin/kubectl
+      else
+        echo "kubectl já instalado"
+      fi
+
+      kubectl version --client=true || true
+
       echo "=== Usuário runner ==="
       id runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
 
@@ -59,7 +90,7 @@ write_files:
       fi
 
       echo "=== Validando extração ==="
-      test -x /opt/actions-runner/runsvc.sh
+      test -x /opt/actions-runner/bin/runsvc.sh
       test -x /opt/actions-runner/config.sh
       test -x /opt/actions-runner/run.sh
 
