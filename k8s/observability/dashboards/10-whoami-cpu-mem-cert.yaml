@@ -42,96 +42,75 @@ data:
         ]
       },
       "panels": [
-        {
-          "type": "table",
-          "title": "Status do Certificado - WhoAmI",
-          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "probe_success{instance=\"https://bry.daviacandido.com.br\"}",
-              "instant": true
-            },
-            {
-              "refId": "B",
-              "expr": "(probe_ssl_earliest_cert_expiry{instance=\"https://bry.daviacandido.com.br\"} - time()) / 86400",
-              "instant": true
-            }
-          ],
-          "transformations": [
-            {
-              "id": "reduce",
-              "options": {
-                "mode": "seriesToRows",
-                "reducers": ["last"]
-              }
-            },
-            {
-              "id": "joinByField",
-              "options": {
-                "byField": "instance"
-              }
-            }
-          ],
-          "options": {
-            "showHeader": true,
-            "cellDisplayMode": "color-text",
-            "columns": [
-              {
-                "text": "instance",
-                "title": "DNS"
-              },
-              {
-                "text": "Value #A",
-                "title": "Live",
-                "custom": {
-                  "displayMode": "color-text",
-                  "mappings": [
-                    {
-                      "type": "value",
-                      "options": {
-                        "1": { "text": "OK ✅", "color": "green" },
-                        "0": { "text": "FAIL ❌", "color": "red" }
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                "text": "Value #B",
-                "title": "Dias Restantes",
-                "custom": {
-                  "displayMode": "color-text",
-                  "mappings": [
-                    {
-                      "type": "range",
-                      "options": {
-                        "from": 0,
-                        "to": 5,
-                        "result": { "color": "red" }
-                      }
-                    },
-                    {
-                      "type": "range",
-                      "options": {
-                        "from": 5,
-                        "to": 15,
-                        "result": { "color": "orange" }
-                      }
-                    },
-                    {
-                      "type": "range",
-                      "options": {
-                        "from": 15,
-                        "to": 9999,
-                        "result": { "color": "green" }
-                      }
-                    }
-                  ]
-                }
-              }
-            ]
+      {
+        "type": "table",
+        "title": "Status do Certificado - WhoAmI",
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 6 },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "probe_success{instance=\"https://bry.daviacandido.com.br\"}",
+            "instant": true
+          },
+          {
+            "refId": "B",
+            "expr": "floor((probe_ssl_earliest_cert_expiry{instance=\"https://bry.daviacandido.com.br\"} - time()) / 86400)",
+            "instant": true
           }
+        ],
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "mode": "seriesToRows",
+              "reducers": ["last"]
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "container": true,
+                "endpoint": true,
+                "job": true,
+                "namespace": true,
+                "pod": true,
+                "service": true,
+                "Time": true
+              },
+              "renameByName": {
+                "instance": "DNS",
+                "Value #A": "Status",
+                "Value #B": "Dias restantes"
+              },
+              "indexByName": {
+                "DNS": 0,
+                "Status": 1,
+                "Dias restantes": 2
+              }
+            }
+          }
+        ],
+        "options": {
+          "showHeader": true,
+          "cellDisplayMode": "color-text",
+          "columns": [
+            {
+              "text": "Status",
+              "custom": {
+                "displayMode": "color-text",
+                "mappings": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": { "text": "OK", "color": "green" },
+                      "0": { "text": "NOK", "color": "red" }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         },
         {
           "type": "timeseries",
